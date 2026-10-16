@@ -3,8 +3,9 @@ import type { EngineInterface, Register } from 'claude-code'
 import { polish } from './polish'
 import { DraftTracker, resolveSource } from './provenance'
 import type { Deps } from './ports'
-import { readSettings } from './settings'
-import { writeJournal, writeLogLine } from './store'
+import { readSettings, showsDetails, showsStatus } from './settings'
+import { AgentNoteTracker } from './agentnote'
+import { agentNoteFor, readPolishConfig, writeJournal, writeLogLine } from './store'
 import type { Settings } from './settings'
 
 /** Counts statuses shown, so a status clears itself only if no newer one replaced it. */
@@ -18,7 +19,8 @@ function bindEngine($: EngineInterface, cfg: Settings, ticket: StatusTicket, log
   return {
     complete: req => $.model.complete(req),
     ask: (question, o) => $.ui.ask(question, o),
-    log: text => $.ui.log(text),
+    // With the display off or brief, the details go to the debug log only (nothing on screen).
+    log: text => $.ui.log(text, showsDetails(cfg.display) ? undefined : { to: 'debug' }),
     record: line => {
       if (cfg.isLogging) logs.chain = logs.chain.then(() => writeLogLine($, cfg, line))
     },
@@ -26,6 +28,7 @@ function bindEngine($: EngineInterface, cfg: Settings, ticket: StatusTicket, log
       logs.chain = logs.chain.then(() => writeJournal($, cfg, entry))
     },
     flash: text => {
+      if (!showsStatus(cfg.display)) return
       const mine = ++ticket.latest
       $.ui.status(`polish: ${text}`)
       void $.clock.sleep(cfg.statusSeconds * 1000).then(() => {
@@ -39,6 +42,7 @@ export const register: Register = (on, options) => {
   const cfg = readSettings(options as Readonly<Record<string, unknown>>)
   const ticket: StatusTicket = { latest: 0 }
   const drafts = new DraftTracker()
+  const agentNotes = new AgentNoteTracker()
   const logs: LogQueue = { chain: Promise.resolve() }
 
   on('prompt.edit', ($, e, next) => {
@@ -52,19 +56,37 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
+  on('prompt.compose', async ($, e, next) => {
+    const composed = await next(e)
+    agentNotes.markComposed()
+    if (!cfg.isEnabled || !cfg.isTellingAgent) return composed
+    const text = await agentNoteFor($, cfg)
+    return { sections: [...composed.sections, { id: 'prompt-polish:about', text, scope: 'session' as const }] }
+  })
+
   on('prompt.submit', async ($, e, next) => {
     const { pastedChars, isDictated } = drafts.settle(e.text)
+    agentNotes.recordSubmit()
     if (!cfg.isEnabled) return next(e)
-    const out = await polish(bindEngine($, cfg, ticket, logs), cfg, {
-      text: e.text,
-      context: e.context,
-      isCommand: e.command !== undefined,
-      isMeta: e.isMeta === true,
-      originKind: e.origin.kind,
-      pastedChars,
-      source: resolveSource(cfg.sourceMode, isDictated),
-    })
+    const { bypass } = await readPolishConfig($)
+    const out = await polish(
+      bindEngine($, cfg, ticket, logs),
+      cfg,
+      {
+        text: e.text,
+        context: e.context,
+        isCommand: e.command !== undefined,
+        isMeta: e.isMeta === true,
+        originKind: e.origin.kind,
+        pastedChars,
+        source: resolveSource(cfg.sourceMode, isDictated),
+      },
+      bypass,
+    )
     await logs.chain
-    return next(out ? { ...e, text: out.text, context: out.context } : e)
+    const context = out?.context ?? e.context
+    const note = cfg.isTellingAgent && agentNotes.takeFallback() ? await agentNoteFor($, cfg) : null
+    const finalContext = note === null ? context : [...(context ?? []), note]
+    return next({ ...e, text: out?.text ?? e.text, ...(finalContext === undefined ? {} : { context: finalContext }) })
   })
 }

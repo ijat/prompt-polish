@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { FAST_SYSTEM_TYPED, FAST_SYSTEM_VOICE, IMPROVE_SYSTEM, asData, clean, hasTip, parse } from './protocol'
+import { FAST_SYSTEM_TYPED, FAST_SYSTEM_VOICE, IMPROVE_SYSTEM, asData, clean, fastSystem, hasTip, parse } from './protocol'
 
 describe('parse', () => {
   test('reads action, confidence, rewrite and tip', () => {
     const p = parse('ACTION:\nimprove\nCONFIDENCE:\n35\nREWRITE:\nFix the login bug.\nTIP:\nSay what fails.')
-    expect(p).toEqual({ action: 'improve', confidence: 35, errors: [], rewrite: 'Fix the login bug.', tip: 'Say what fails.' })
+    expect(p).toEqual({ action: 'improve', confidence: 35, errors: [], isBypass: false, rewrite: 'Fix the login bug.', tip: 'Say what fails.' })
   })
   test('a missing confidence counts as fully confident', () => {
     expect(parse('ACTION:\ngrammar\nREWRITE:\nx y\nTIP:\nnone')?.confidence).toBe(100)
@@ -77,5 +77,28 @@ describe('error codes', () => {
     expect(FAST_SYSTEM_TYPED).toContain('spelling')
     expect(FAST_SYSTEM_TYPED).not.toContain('stutter')
     expect(FAST_SYSTEM_TYPED).not.toContain('false-start')
+  })
+})
+
+describe('model bypass in the protocol', () => {
+  const reply = (bypass: string) => `ACTION:\ngrammar\nCONFIDENCE:\n90\n${bypass}ERRORS:\nnone\nREWRITE:\nFix it now.\nTIP:\nnone`
+
+  test('BYPASS: yes is read; no, a missing line, or anything else is not a bypass', () => {
+    expect(parse(reply('BYPASS:\nyes\n'))?.isBypass).toBe(true)
+    expect(parse(reply('BYPASS: Yes\n'))?.isBypass).toBe(true)
+    expect(parse(reply('BYPASS:\nno\n'))?.isBypass).toBe(false)
+    expect(parse(reply(''))?.isBypass).toBe(false)
+    expect(parse(reply('BYPASS:\nmaybe\n'))?.isBypass).toBe(false)
+  })
+  test('the bypass question is asked only when the model check is on', () => {
+    for (const source of ['voice', 'typed'] as const) {
+      expect(fastSystem(source, false)).not.toContain('BYPASS')
+      expect(fastSystem(source, true)).toContain('BYPASS:')
+      expect(fastSystem(source, true)).toContain('NOT bypass requests')
+    }
+  })
+  test('the default prompts are the ones without the bypass question', () => {
+    expect(FAST_SYSTEM_VOICE).toBe(fastSystem('voice', false))
+    expect(FAST_SYSTEM_TYPED).toBe(fastSystem('typed', false))
   })
 })

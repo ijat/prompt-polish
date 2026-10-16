@@ -26,7 +26,17 @@ Only the built-in voice is detected. With a third-party dictation tool the text 
 
 ## Bypass: send exactly as written
 
-Start a prompt with `bypass:` (also `raw:`, `no polish:`, `skip polish:`, or a dash instead of the colon; `Bypass.` and `No polish.` work too, since dictation writes a period for a pause) and the mod skips everything: no model call, no rewrite, no dialog, no journal entry. Only that opening phrase is removed; the rest goes to the agent unchanged. It wins over every other rule, including `improve:`. It applies only to prompts you typed or dictated, never to slash commands. A prompt that merely starts with those words, like "bypass the cache for this request", is not treated as a bypass.
+Start a prompt with `bypass:` (also `raw:`, `no polish:`, `skip polish:`, or a dash instead of the colon; `Bypass.` and `No polish.` work too, since dictation writes a period for a pause) and the mod skips everything: no model call, no rewrite, no dialog, no journal entry. Only that opening phrase is removed; the rest goes to the agent unchanged. It wins over every other rule, including `improve:`. It applies only to prompts you typed or dictated, never to slash commands. A prompt that merely starts with those words, like "bypass the cache for this request", is not a bypass.
+
+Configure it in `~/.claude/prompt-polish.config.json` (see `prompt-polish.config.example.json`; edits apply to the next prompt):
+
+```json
+{ "bypass": { "enabled": true, "phrases": ["verbatim"], "modelCheck": false } }
+```
+
+- `enabled` (default `true`): `false` turns the phrase rules off.
+- `phrases`: your own opening words, each followed by `:` `.` `-` or `—`. Plain words only.
+- `modelCheck` (default `false`; must be exactly `true`): also let the model decide, from the sentence, whether you asked for the message to be left alone ("send this exactly as I said", "don't rewrite this"). It costs no extra call: it is one more answer line in the existing fast call. Orders about the work ("don't touch the login file") are meant to be ignored. In my test on synthetic prompts (8 real requests and 14 look-alikes, each run twice), Haiku caught 16 of 16 requests with 3 of 28 false alarms, and Sonnet caught 16 of 16 with 0 of 28 false alarms. A false alarm only means that one prompt is sent without cleanup. If you turn this on, set `fastModel` to a Sonnet model.
 
 ## Recommendations, and when it asks
 
@@ -68,12 +78,20 @@ All optional; edit them in the Claude Code config menu.
 | `minPastedChars` | `20` | A prompt with at least this many pasted characters is never rewritten, not even by `improve:`. |
 | `minWords` / `maxWords` | `4` / `250` | Prompts outside this range are left alone. |
 | `sourceMode` | `auto` | `auto` detects voice vs typed; `voice` or `typed` pins it (use `voice` with a third-party dictation tool). |
+| `display` | `off` | `off`, `status` or `full`: what the mod shows in the session. |
+| `isTellingAgent` | `true` | Tell the agent where the log is (about 80 tokens, once per session). |
 | `isLogging` / `logPath` | `true` / empty | Write the diagnostics log; empty path means `~/.claude/prompt-polish.log`. |
 | `statusSeconds` | `8` | How long the `polish:` status stays. |
 
 ## Diagnostics log
 
 Each decision is also written to `~/.claude/prompt-polish.log` (on Windows, `%USERPROFILE%\.claude\prompt-polish.log`): a timestamp, what the mod did and why (`skipped (pasted content)`, `model failed (api-error)`, the model's action and confidence), and text lengths. It never contains your prompt or any rewrite of it. The last 300 lines are kept. Attach the file when reporting a problem. Turn it off with `isLogging`, or move it with `logPath`.
+
+## What it shows, and telling the agent
+
+By default the mod shows **nothing** in your session. Set `display` to choose: `off` (default), `status` (only the short `polish:` line, which clears after a few seconds), or `full` (the status plus the `[polish]` before/after and tip lines in the transcript). Details always go to the debug log (`claude --debug`) and decisions to the diagnostics log. The question dialog still appears when the model is unsure, because it needs your answer.
+
+Since the agent can't see what the mod did, the mod adds one short note (about 80 tokens, once per session; setting `isTellingAgent`) telling it to read `~/.claude/prompt-polish.log` if you ask whether the mod is working. On a Claude Code managed by an organization, plugins you install can't add to the system prompt, so the mod sends the same note once through the prompt itself, on your second prompt.
 
 ## Learning journal (opt-in, local only)
 
@@ -118,6 +136,8 @@ Layout (`hooks/`), each file with one job:
 | `protocol.ts` | The prompts sent to the models and the parser for their replies. |
 | `journal.ts` | The opt-in learning journal: config parsing, what each level may store, the no-git-repo guard. |
 | `store.ts` | The only code that writes to disk: the diagnostics log and the journal. |
+| `config.ts` | Parses the person's config file: the bypass rules (the journal is parsed by `journal.ts`). |
+| `agentnote.ts` | The short note that tells the agent where the log is, and the tracker that sends it once by the route that works. |
 | `logfile.ts` | Where the diagnostics log goes and how it is trimmed. |
 | `report.ts` | What the person sees: status line and transcript. |
 | `settings.ts` | Options with defaults and validation. |

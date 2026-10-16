@@ -99,3 +99,19 @@ describe('isFromPerson', () => {
     expect(isFromPerson(input('hello there friend', { originKind: 'sdk' }))).toBe(false)
   })
 })
+
+describe('bypass with the person\'s own phrases', () => {
+  test('an extra phrase works like the built-in ones', () => {
+    expect(bypassRequest('verbatim: fix the login bug', ['verbatim'])).toEqual({ isBypass: true, text: 'fix the login bug' })
+    expect(bypassRequest('as is - fix the login bug', ['as is'])).toEqual({ isBypass: true, text: 'fix the login bug' })
+  })
+  test('without being listed, the phrase does nothing', () => {
+    expect(bypassRequest('verbatim: fix the login bug').isBypass).toBe(false)
+  })
+  test('the built-in phrases keep working when extras are set', () => {
+    expect(bypassRequest('bypass: fix it now', ['verbatim']).isBypass).toBe(true)
+  })
+  test('an extra phrase must be followed by a delimiter, so ordinary sentences are safe', () => {
+    expect(bypassRequest('verbatim copies of the file should be kept', ['verbatim']).isBypass).toBe(false)
+  })
+})

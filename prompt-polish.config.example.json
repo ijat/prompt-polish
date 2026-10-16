@@ -3,5 +3,10 @@
     "enabled": false,
     "level": "tags",
     "directory": ""
+  },
+  "bypass": {
+    "enabled": true,
+    "phrases": [],
+    "modelCheck": false
   }
 }

@@ -53,14 +53,21 @@ export const structure = (text: string, maxWords: number): string | null => {
 /**
  * Opens a prompt that must be sent exactly as typed: `bypass:`, `raw:`, `no polish:` or `skip polish:`
  * (a dash works too; `bypass.` and `no polish.` also count, since dictation writes a period for a spoken pause).
+ * The person may add phrases of their own in the config file; those take `:` `.` `-` or `—`.
  */
-const BYPASS_PHRASE = /^\s*(?:please\s+)?(?:(?:bypass|no\s+polish|skip\s+polish)\s*[:.\-\u2014]|raw\s*[:\-\u2014])\s*/i
+const BUILT_IN_BYPASS = '(?:bypass|no\\s+polish|skip\\s+polish)\\s*[:.\\-\\u2014]|raw\\s*[:\\-\\u2014]'
+
+const bypassPattern = (extraPhrases: readonly string[]): RegExp => {
+  const extras = extraPhrases.map(p => p.trim().replace(/\s+/g, '\\s+')).filter(Boolean)
+  const own = extras.length > 0 ? `|(?:${extras.join('|')})\\s*[:.\\-\\u2014]` : ''
+  return new RegExp(`^\\s*(?:please\\s+)?(?:${BUILT_IN_BYPASS}${own})\\s*`, 'i')
+}
 
 export type BypassRequest = { isBypass: boolean; text: string }
 
 /** An explicit request to leave the prompt alone. `text` is the prompt with that opening phrase removed. */
-export const bypassRequest = (text: string): BypassRequest => {
-  const stripped = text.replace(BYPASS_PHRASE, '')
+export const bypassRequest = (text: string, extraPhrases: readonly string[] = []): BypassRequest => {
+  const stripped = text.replace(bypassPattern(extraPhrases), '')
   return stripped !== text && stripped.trim() !== '' ? { isBypass: true, text: stripped } : { isBypass: false, text }
 }
 

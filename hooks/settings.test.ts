@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { DEFAULTS, readSettings } from './settings'
+import { DEFAULTS, readSettings, showsDetails, showsStatus } from './settings'
 
 describe('readSettings', () => {
   test('empty options give the defaults', () => {
@@ -28,5 +28,22 @@ describe('readSettings', () => {
   test('malformed values fall back to the default', () => {
     const s = readSettings({ fastEffort: 'bogus', maxWords: -3, statusSeconds: 'soon', fastModel: '', isEnabled: 'yes' })
     expect(s).toEqual(DEFAULTS)
+  })
+})
+
+describe('display and agent note settings', () => {
+  test('the display is off by default and accepts off, status and full', () => {
+    expect(readSettings({}).display).toBe('off')
+    expect(readSettings({ display: 'status' }).display).toBe('status')
+    expect(readSettings({ display: 'full' }).display).toBe('full')
+    expect(readSettings({ display: 'loud' }).display).toBe('off')
+  })
+  test('what each display shows', () => {
+    expect([showsStatus('off'), showsStatus('status'), showsStatus('full')]).toEqual([false, true, true])
+    expect([showsDetails('off'), showsDetails('status'), showsDetails('full')]).toEqual([false, false, true])
+  })
+  test('telling the agent is on by default and can be turned off', () => {
+    expect(readSettings({}).isTellingAgent).toBe(true)
+    expect(readSettings({ isTellingAgent: false }).isTellingAgent).toBe(false)
   })
 })

@@ -4,6 +4,8 @@ import { describe, expect, test } from 'claude-code/testing'
 import { DEFAULTS } from './settings'
 import type { Settings } from './settings'
 import type { JournalEntry } from './journal'
+import type { BypassConfig } from './config'
+import { DEFAULT_BYPASS } from './config'
 import { polish } from './polish'
 import type { Input } from './gate'
 
@@ -17,8 +19,8 @@ const nth = <T>(items: readonly T[], n: number): T => {
 const usage = { input_tokens: 1, output_tokens: 1 } as never
 
 const reply = (text: string): ModelCompleteResult => ({ isAnswered: true, text, usage })
-const fast = (action: string, confidence: number | string, rewrite: string, tip = 'none', errors = 'none') =>
-  reply(`ACTION:\n${action}\nCONFIDENCE:\n${confidence}\nERRORS:\n${errors}\nREWRITE:\n${rewrite}\nTIP:\n${tip}`)
+const fast = (action: string, confidence: number | string, rewrite: string, tip = 'none', errors = 'none', bypass = '') =>
+  reply(`ACTION:\n${action}\nCONFIDENCE:\n${confidence}\n${bypass}ERRORS:\n${errors}\nREWRITE:\n${rewrite}\nTIP:\n${tip}`)
 const improved = (rewrite: string, tip = 'Say what fails.') => reply(`REWRITE:\n${rewrite}\nTIP:\n${tip}`)
 
 /** Fake engine: scripted model replies in order, a scripted dialog answer, and everything recorded. */
@@ -374,5 +376,47 @@ describe('bypass', () => {
     await polish(r.deps, cfg(), voice('bypass: secret falcon launch codes tomorrow'))
     expect(r.records.join('\n')).toContain('bypass')
     expect(r.records.join('\n')).not.toContain('falcon')
+  })
+})
+
+describe('bypass configuration and the model check', () => {
+  const ask = (over: Partial<BypassConfig> = {}): BypassConfig => ({ ...DEFAULT_BYPASS, ...over })
+  const SENT = 'please send this exactly as I said and do not rewrite it: the build is broken on main'
+
+  test('by default the model is not asked about bypass, and its yes would be ignored', async () => {
+    const r = rig([fast('grammar', 90, 'Fixed text of the build prompt here.', 'none', 'none', 'BYPASS:\nyes\n')])
+    const out = await polish(r.deps, cfg(), voice(SENT))
+    expect(String(nth(r.calls, 0).system)).not.toContain('BYPASS')
+    expect(out?.text).toBe('Fixed text of the build prompt here.')
+  })
+
+  test('with modelCheck on, the model is asked, and a yes sends the prompt exactly as written', async () => {
+    const r = rig([fast('grammar', 90, 'Some rewrite that must not be used.', 'none', 'none', 'BYPASS:\nyes\n')])
+    const out = await polish(r.deps, cfg(), voice(SENT), ask({ isModelChecking: true }))
+    expect(String(nth(r.calls, 0).system)).toContain('BYPASS:')
+    expect(out).toBe(null)
+    expect(r.entries.length).toBe(0)
+    expect(r.records.join('\n')).toContain('bypass')
+    expect(r.records.join('\n')).not.toContain('build is broken')
+  })
+
+  test('with modelCheck on, a no goes through the normal flow', async () => {
+    const r = rig([fast('grammar', 90, FIXED, 'none', 'none', 'BYPASS:\nno\n')])
+    const out = await polish(r.deps, cfg(), voice(DICTATED), ask({ isModelChecking: true }))
+    expect(out?.text).toBe(FIXED)
+  })
+
+  test('phrase bypass can be switched off in the config, and then the model is not asked either', async () => {
+    const r = rig([fast('grammar', 90, FIXED)])
+    const out = await polish(r.deps, cfg(), voice(`bypass: ${DICTATED}`), ask({ isEnabled: false, isModelChecking: true }))
+    expect(String(nth(r.calls, 0).system)).not.toContain('BYPASS:')
+    expect(out?.text).toBe(FIXED)
+  })
+
+  test('the person\'s own phrase bypasses without any model call', async () => {
+    const r = rig([])
+    const out = await polish(r.deps, cfg(), voice('verbatim: fix teh grammer please'), ask({ extraPhrases: ['verbatim'] }))
+    expect(out?.text).toBe('fix teh grammer please')
+    expect(r.calls.length).toBe(0)
   })
 })

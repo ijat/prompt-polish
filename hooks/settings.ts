@@ -2,6 +2,9 @@ import type { SourceMode } from './provenance'
 
 export type Effort = 'low' | 'medium' | 'high'
 
+/** What the mod shows in the session: nothing, only the short status line, or the status plus the before/after and tip lines. */
+export type Display = 'off' | 'status' | 'full'
+
 export type Settings = {
   isEnabled: boolean
   fastModel: string
@@ -10,6 +13,9 @@ export type Settings = {
   improveEffort: Effort
   isAskingWhenUnsure: boolean
   isAutoImproving: boolean
+  display: Display
+  /** Add a short note to the system prompt telling the agent where to look when asked whether the mod works. */
+  isTellingAgent: boolean
   /** Attach your original text as a hidden note to the agent. Costs context tokens on every rewritten prompt. */
   isAttachingOriginal: boolean
   /** Write a diagnostics log (decisions and counts only, never prompt text). */
@@ -35,6 +41,8 @@ export const DEFAULTS: Settings = {
   improveEffort: 'medium',
   isAskingWhenUnsure: true,
   isAutoImproving: false,
+  display: 'off',
+  isTellingAgent: true,
   isAttachingOriginal: false,
   isLogging: true,
   sourceMode: 'auto',
@@ -70,7 +78,7 @@ const nonNegative = (raw: Raw, key: 'askBelowConfidence'): number => {
   return typeof v === 'number' && v >= 0 ? v : DEFAULTS[key]
 }
 
-const flag = (raw: Raw, key: 'isEnabled' | 'isAskingWhenUnsure' | 'isAutoImproving' | 'isAttachingOriginal' | 'isLogging'): boolean => {
+const flag = (raw: Raw, key: 'isEnabled' | 'isAskingWhenUnsure' | 'isAutoImproving' | 'isAttachingOriginal' | 'isLogging' | 'isTellingAgent'): boolean => {
   const v = raw[key]
   return typeof v === 'boolean' ? v : DEFAULTS[key]
 }
@@ -78,6 +86,10 @@ const flag = (raw: Raw, key: 'isEnabled' | 'isAskingWhenUnsure' | 'isAutoImprovi
 const SOURCE_MODES: readonly SourceMode[] = ['auto', 'voice', 'typed']
 
 const sourceMode = (raw: Raw): SourceMode => SOURCE_MODES.find(m => m === raw['sourceMode']) ?? DEFAULTS.sourceMode
+
+const DISPLAYS: readonly Display[] = ['off', 'status', 'full']
+
+const display = (raw: Raw): Display => DISPLAYS.find(d => d === raw['display']) ?? DEFAULTS.display
 
 const effort = (raw: Raw, key: 'fastEffort' | 'improveEffort'): Effort => {
   const v = raw[key]
@@ -93,6 +105,8 @@ export const readSettings = (raw: Raw = {}): Settings => ({
   improveEffort: effort(raw, 'improveEffort'),
   isAskingWhenUnsure: flag(raw, 'isAskingWhenUnsure'),
   isAutoImproving: flag(raw, 'isAutoImproving'),
+  display: display(raw),
+  isTellingAgent: flag(raw, 'isTellingAgent'),
   isAttachingOriginal: flag(raw, 'isAttachingOriginal'),
   isLogging: flag(raw, 'isLogging'),
   sourceMode: sourceMode(raw),
@@ -103,3 +117,9 @@ export const readSettings = (raw: Raw = {}): Settings => ({
   askBelowConfidence: nonNegative(raw, 'askBelowConfidence'),
   statusSeconds: positive(raw, 'statusSeconds'),
 })
+
+/** The short status line is shown for `status` and `full`. */
+export const showsStatus = (display: Display): boolean => display !== 'off'
+
+/** The before/after and tip lines go to the transcript only for `full`; otherwise to the debug log. */
+export const showsDetails = (display: Display): boolean => display === 'full'

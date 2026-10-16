@@ -1,6 +1,6 @@
 {
   "name": "prompt-polish",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Cleans up voice-dictated prompts before the agent sees them, teaches the fix in a one-line tip, and can rewrite vague prompts with a stronger model.",
   "author": { "name": "Ijat" },
   "license": "MIT",
@@ -19,6 +19,8 @@
     "maxWords": { "type": "number", "title": "Maximum words", "description": "Longer prompts are treated as deliberately typed and left alone.", "default": 250 },
     "sourceMode": { "type": "string", "title": "Voice or typed", "description": "auto tells voice from typing by how the text entered the prompt box (only Claude Code's built-in voice is detected). Set voice if you always use a third-party dictation tool, or typed to never apply the dictation cleanup.", "default": "auto", "options": ["auto", "voice", "typed"] },
     "isAttachingOriginal": { "type": "boolean", "title": "Attach your original to the agent", "description": "Send your original text to the agent as a hidden note beside the rewrite, so it can fall back to it. Off by default: the note stays in the conversation context and costs roughly 60-150 tokens per rewritten prompt.", "default": false },
+    "display": { "type": "string", "title": "What to show in the session", "description": "off (default): nothing on screen. status: only the short 'polish:' status line. full: the status plus the before/after and tip lines in the transcript. Details always go to the debug log, and decisions to the diagnostics log.", "default": "off", "options": ["off", "status", "full"] },
+    "isTellingAgent": { "type": "boolean", "title": "Tell the agent where to look", "description": "Add a short note (about 80 tokens, once per session) so the agent knows to read the diagnostics log when you ask whether the mod is working.", "default": true },
     "isLogging": { "type": "boolean", "title": "Write a diagnostics log", "description": "Record what the mod decided and why (never your prompt text or its rewrites) in ~/.claude/prompt-polish.log, so you can share it when something looks wrong.", "default": true },
     "logPath": { "type": "string", "title": "Log file path", "description": "Where the diagnostics log goes. Empty means ~/.claude/prompt-polish.log.", "default": "" },
     "statusSeconds": { "type": "number", "title": "Status seconds", "description": "How long the 'polish:' status stays visible.", "default": 8 }

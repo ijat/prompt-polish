@@ -2,7 +2,7 @@ import { expect, test } from 'claude-code/testing'
 
 import type { JournalEntry } from './journal'
 import { DEFAULTS } from './settings'
-import { writeJournal } from './store'
+import { agentNoteFor, readPolishConfig, writeJournal } from './store'
 
 const SAID = 'rotate the production database password for project falcon'
 const FIXED = 'Rotate the production database password for Project Falcon.'
@@ -123,4 +123,23 @@ test('a failing disk never throws into the prompt', async () => {
     throw new Error('disk full')
   }
   await writeJournal(e.$, DEFAULTS, entry)
+})
+
+test('readPolishConfig reads the bypass rules and the journal from the one file', async () => {
+  const e = fakeEngine(withConfig('{"journal":{"enabled":true,"level":"tips"},"bypass":{"modelCheck":true,"phrases":["verbatim"]}}'))
+  const c = await readPolishConfig(e.$)
+  expect(c.journal?.level).toBe('tips')
+  expect(c.bypass).toEqual({ isEnabled: true, extraPhrases: ['verbatim'], isModelChecking: true })
+})
+
+test('readPolishConfig with no file gives the defaults', async () => {
+  const c = await readPolishConfig(fakeEngine({}).$)
+  expect(c.journal).toBe(null)
+  expect(c.bypass.isModelChecking).toBe(false)
+  expect(c.bypass.isEnabled).toBe(true)
+})
+
+test('the agent note carries this machine\'s real log path', async () => {
+  const note = await agentNoteFor(fakeEngine({}).$, DEFAULTS)
+  expect(note).toContain(`${HOME}/.claude/prompt-polish.log`)
 })

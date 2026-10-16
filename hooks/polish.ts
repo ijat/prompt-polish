@@ -1,9 +1,11 @@
+import type { BypassConfig } from './config'
+import { DEFAULT_BYPASS } from './config'
 import type { Input } from './gate'
 import { bypassRequest, explicitImprove, isFromPerson, skipReason } from './gate'
 import type { JournalEntry } from './journal'
 import type { Deps } from './ports'
 import type { Action, Parsed } from './protocol'
-import { CHOICES, FAST_SYSTEM_TYPED, FAST_SYSTEM_VOICE, IMPROVE_SYSTEM, RECOMMENDED_SUFFIX, asData, parse } from './protocol'
+import { CHOICES, IMPROVE_SYSTEM, RECOMMENDED_SUFFIX, asData, fastSystem, parse } from './protocol'
 import { Reporter } from './report'
 import type { Settings } from './settings'
 
@@ -25,15 +27,18 @@ class Polisher {
     private readonly deps: Deps,
     private readonly cfg: Settings,
     private readonly input: Input,
+    private readonly bypass: BypassConfig,
   ) {
     this.report = new Reporter(deps)
   }
 
   async run(): Promise<Outcome> {
-    const bypass = bypassRequest(this.input.text)
-    if (bypass.isBypass && isFromPerson(this.input)) {
-      this.report.note('bypass: sent as written, nothing changed')
-      return { text: bypass.text, context: this.input.context ?? [] }
+    if (this.bypass.isEnabled) {
+      const bypass = bypassRequest(this.input.text, this.bypass.extraPhrases)
+      if (bypass.isBypass && isFromPerson(this.input)) {
+        this.report.note('bypass: sent as written, nothing changed')
+        return { text: bypass.text, context: this.input.context ?? [] }
+      }
     }
     const request = explicitImprove(this.input.text)
     const skip = skipReason(this.input, this.cfg, request.isExplicit)
@@ -47,6 +52,11 @@ class Polisher {
       this.report.note(`error (${String(err)}), sent original`)
       return null
     }
+  }
+
+  /** The model's bypass judgment is used only when the person switched it on (and phrase bypass is not disabled). */
+  private isModelBypassOn(): boolean {
+    return this.bypass.isEnabled && this.bypass.isModelChecking
   }
 
   /** The person asked for it: one call to the improve model, no questions. */
@@ -65,6 +75,10 @@ class Polisher {
   private async recommendAndApply(): Promise<Outcome> {
     const fast = await this.callFast()
     if (!fast) return null
+    if (this.isModelBypassOn() && fast.isBypass) {
+      this.report.note('bypass: you asked for this prompt to be left alone, sent as written')
+      return null
+    }
 
     const recommended = fast.action ?? 'grammar'
     const isUnsure = fast.action !== undefined && fast.confidence < this.cfg.askBelowConfidence
@@ -130,7 +144,7 @@ class Polisher {
     const startedAt = Date.now()
     const r = await this.deps.complete({
       model: this.cfg.fastModel,
-      system: this.input.source === 'voice' ? FAST_SYSTEM_VOICE : FAST_SYSTEM_TYPED,
+      system: fastSystem(this.input.source, this.isModelBypassOn()),
       prompt: asData(this.input.text),
       effort: this.cfg.fastEffort,
       maxTokens: FAST_MAX_TOKENS,
@@ -180,4 +194,5 @@ class Polisher {
  * Decides what the agent receives for one submitted prompt. Never throws: any failure
  * means `null`, the original prompt.
  */
-export const polish = (deps: Deps, cfg: Settings, input: Input): Promise<Outcome> => new Polisher(deps, cfg, input).run()
+export const polish = (deps: Deps, cfg: Settings, input: Input, bypass: BypassConfig = DEFAULT_BYPASS): Promise<Outcome> =>
+  new Polisher(deps, cfg, input, bypass).run()
