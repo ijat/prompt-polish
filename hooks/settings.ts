@@ -8,6 +8,8 @@ export type Settings = {
   improveEffort: Effort
   isAskingWhenUnsure: boolean
   isAutoImproving: boolean
+  /** Ask only when the model's confidence (0-100) is below this. */
+  askBelowConfidence: number
   minWords: number
   maxWords: number
   statusSeconds: number
@@ -21,6 +23,7 @@ export const DEFAULTS: Settings = {
   improveEffort: 'medium',
   isAskingWhenUnsure: true,
   isAutoImproving: false,
+  askBelowConfidence: 30,
   minWords: 4,
   maxWords: 250,
   statusSeconds: 8,
@@ -38,6 +41,11 @@ const text = (raw: Raw, key: 'fastModel' | 'improveModel'): string => {
 const positive = (raw: Raw, key: 'minWords' | 'maxWords' | 'statusSeconds'): number => {
   const v = raw[key]
   return typeof v === 'number' && v > 0 ? v : DEFAULTS[key]
+}
+
+const nonNegative = (raw: Raw, key: 'askBelowConfidence'): number => {
+  const v = raw[key]
+  return typeof v === 'number' && v >= 0 ? v : DEFAULTS[key]
 }
 
 const flag = (raw: Raw, key: 'isEnabled' | 'isAskingWhenUnsure' | 'isAutoImproving'): boolean => {
@@ -61,5 +69,6 @@ export const readSettings = (raw: Raw = {}): Settings => ({
   isAutoImproving: flag(raw, 'isAutoImproving'),
   minWords: positive(raw, 'minWords'),
   maxWords: positive(raw, 'maxWords'),
+  askBelowConfidence: nonNegative(raw, 'askBelowConfidence'),
   statusSeconds: positive(raw, 'statusSeconds'),
 })

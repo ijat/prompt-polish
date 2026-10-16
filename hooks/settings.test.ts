@@ -11,6 +11,10 @@ describe('readSettings', () => {
     const s = readSettings({ fastModel: 'sonnet', minWords: 6, isEnabled: false, improveEffort: 'high' })
     expect(s).toEqual({ ...DEFAULTS, fastModel: 'sonnet', minWords: 6, isEnabled: false, improveEffort: 'high' })
   })
+  test('zero is a valid ask threshold (never ask)', () => {
+    expect(readSettings({ askBelowConfidence: 0 }).askBelowConfidence).toBe(0)
+    expect(readSettings({ askBelowConfidence: -1 }).askBelowConfidence).toBe(DEFAULTS.askBelowConfidence)
+  })
   test('malformed values fall back to the default', () => {
     const s = readSettings({ fastEffort: 'bogus', maxWords: -3, statusSeconds: 'soon', fastModel: '', isEnabled: 'yes' })
     expect(s).toEqual(DEFAULTS)

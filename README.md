@@ -22,7 +22,7 @@ A Claude Code mod for people who dictate prompts. It cleans up each spoken promp
 The fast model recommends one of three actions for each prompt: fix the grammar, improve it, or send the original (when dictation is too garbled to correct reliably), and says how sure it is.
 
 - **Confident:** it just acts, no question. A confident "improve" recommendation is logged as a hint and gets the grammar fix; it does not run the stronger model on its own unless `isAutoImproving` is on.
-- **Not confident:** a dialog asks, with the recommended choice first and marked.
+- **Not confident** (confidence under `askBelowConfidence`, default 30 of 100): a dialog asks, with the recommended choice first and marked.
 - **You ask:** start a prompt with `improve:` (or `polish this prompt -`), or end it with `... improve this prompt`. A stronger model (Opus by default) restructures it into a clear brief, no dialog. The request phrase is removed, and your original is attached for the agent.
 
 ## Install
@@ -51,6 +51,7 @@ All optional; edit them in the Claude Code config menu.
 | `fastModel` / `fastEffort` | `haiku` / `low` | Model that fixes grammar and classifies each prompt. |
 | `improveModel` / `improveEffort` | `opus` / `medium` | Model used for `improve:` requests. |
 | `isAskingWhenUnsure` | `true` | Show the dialog when the fast model isn't confident. |
+| `askBelowConfidence` | `30` | Ask only when confidence (0-100) is below this; rambling is treated as normal. |
 | `isAutoImproving` | `false` | Run the improve model automatically on a confident "improve" recommendation. |
 | `minWords` / `maxWords` | `4` / `250` | Prompts outside this range are left alone. |
 | `statusSeconds` | `8` | How long the `polish:` status stays. |

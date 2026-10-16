@@ -60,8 +60,8 @@ class Polisher {
     if (!fast) return null
 
     const recommended = fast.action ?? 'grammar'
-    const isUnsure = !fast.isConfident && fast.action !== undefined
-    const action = await this.resolveAction(recommended, isUnsure)
+    const isUnsure = fast.action !== undefined && fast.confidence < this.cfg.askBelowConfidence
+    const action = await this.resolveAction(recommended, isUnsure, fast.confidence)
     if (action === null || action === 'original') {
       if (action === 'original') this.report.note(`sent original (${isUnsure ? 'you chose' : 'too garbled to correct'})`)
       return null
@@ -85,8 +85,8 @@ class Polisher {
    * The action to take. Confident recommendations are applied without asking; an unsure one
    * asks (recommended choice first) when allowed. `null` means the dialog was dismissed.
    */
-  private async resolveAction(recommended: Action, isUnsure: boolean): Promise<Action | null> {
-    if (isUnsure && this.cfg.isAskingWhenUnsure) return this.askPerson(recommended)
+  private async resolveAction(recommended: Action, isUnsure: boolean, confidence: number): Promise<Action | null> {
+    if (isUnsure && this.cfg.isAskingWhenUnsure) return this.askPerson(recommended, confidence)
     if (recommended === 'improve' && !isUnsure && !this.cfg.isAutoImproving) {
       this.report.hint('recommend: improve this one. Start a prompt with "improve:" to have a stronger model restructure it.')
       return 'grammar'
@@ -94,10 +94,10 @@ class Polisher {
     return recommended
   }
 
-  private async askPerson(recommended: Action): Promise<Action | null> {
+  private async askPerson(recommended: Action, confidence: number): Promise<Action | null> {
     const order = [recommended, ...ACTIONS.filter(a => a !== recommended)]
     try {
-      const choice = await this.deps.ask('Not sure how to handle this prompt. What should I do?', {
+      const choice = await this.deps.ask(`Not sure how to handle this prompt (confidence ${confidence}%). What should I do?`, {
         options: order.map((a, i) => CHOICES[a] + (i === 0 ? RECOMMENDED_SUFFIX : '')),
         header: 'Polish',
       })

@@ -1,6 +1,6 @@
 {
   "name": "prompt-polish",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Cleans up voice-dictated prompts before the agent sees them, teaches the fix in a one-line tip, and can rewrite vague prompts with a stronger model.",
   "author": { "name": "Ijat" },
   "license": "MIT",
@@ -13,6 +13,7 @@
     "improveEffort": { "type": "string", "title": "Improve model effort", "description": "Thinking effort for the improve model.", "default": "medium", "options": ["low", "medium", "high"] },
     "isAskingWhenUnsure": { "type": "boolean", "title": "Ask when unsure", "description": "Show a dialog, with the recommended choice first, only when the fast model is not confident what to do with a prompt.", "default": true },
     "isAutoImproving": { "type": "boolean", "title": "Auto-improve", "description": "Run the improve model automatically when the fast model confidently recommends it. Off by default: you ask by starting a prompt with \"improve:\".", "default": false },
+    "askBelowConfidence": { "type": "number", "title": "Ask below confidence", "description": "Ask which action to take only when the fast model's confidence (0-100) is below this. Lower it to be asked less; 0 never asks.", "default": 30 },
     "minWords": { "type": "number", "title": "Minimum words", "description": "Prompts shorter than this are left alone.", "default": 4 },
     "maxWords": { "type": "number", "title": "Maximum words", "description": "Longer prompts are treated as deliberately typed and left alone.", "default": 250 },
     "statusSeconds": { "type": "number", "title": "Status seconds", "description": "How long the 'polish:' status stays visible.", "default": 8 }
