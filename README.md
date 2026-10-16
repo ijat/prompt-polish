@@ -15,6 +15,7 @@ A Claude Code mod for people who dictate prompts. It cleans up each spoken promp
     tip:      "It" is singular, so use "has" and "mistakes" (plural after "many").
   ```
 
+- Leaves a prompt completely alone if it contains pasted content (20 or more pasted characters, detected from how the text entered the prompt box; nothing is stored).
 - Leaves alone anything you clearly typed on purpose: multi-line prompts, pasted text, bullet or numbered lists, code fences, prompts over 250 words, prompts under 4 words, slash commands, and anything not typed or dictated by you (notifications, other sessions, SDK runs).
 
 ## Recommendations, and when it asks
@@ -53,6 +54,7 @@ All optional; edit them in the Claude Code config menu.
 | `isAskingWhenUnsure` | `true` | Show the dialog when the fast model isn't confident. |
 | `askBelowConfidence` | `30` | Ask only when confidence (0-100) is below this; rambling is treated as normal. |
 | `isAutoImproving` | `false` | Run the improve model automatically on a confident "improve" recommendation. |
+| `minPastedChars` | `20` | A prompt with at least this many pasted characters is never rewritten, not even by `improve:`. |
 | `minWords` / `maxWords` | `4` / `250` | Prompts outside this range are left alone. |
 | `statusSeconds` | `8` | How long the `polish:` status stays. |
 
@@ -78,6 +80,7 @@ Layout (`hooks/`), each file with one job:
 | `register.ts` | The only file that touches the engine: binds it to the ports and hooks `prompt.submit`. |
 | `polish.ts` | The decision flow, as a small class of named steps. Depends only on the ports. |
 | `ports.ts` | The interface the flow needs from the engine (model call, dialog, log, status). |
+| `provenance.ts` | Tells pasted text from typed text (`prompt.edit` events without a key press). |
 | `gate.ts` | When to leave a prompt alone; structure detection; the `improve:` request. |
 | `protocol.ts` | The prompts sent to the models and the parser for their replies. |
 | `report.ts` | What the person sees: status line and transcript. |

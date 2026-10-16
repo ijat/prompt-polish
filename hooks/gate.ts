@@ -7,6 +7,8 @@ export type Input = {
   isCommand: boolean
   isMeta: boolean
   originKind: string
+  /** Characters of `text` that were pasted rather than typed or dictated. */
+  pastedChars: number
 }
 
 /** Origins that are the person's own typing or dictation. */
@@ -45,12 +47,13 @@ export const explicitImprove = (text: string): ImproveRequest => {
 
 /**
  * Why this prompt must be left exactly as it is, or null when it is a candidate.
- * An explicit improve request is always a candidate, however structured the prompt.
+ * An explicit improve request is a candidate however structured the prompt is, but never when it holds pasted content.
  */
 export const skipReason = (input: Input, cfg: Settings, isExplicit: boolean): string | null => {
   if (input.isCommand) return 'slash command'
   if (input.isMeta) return 'hidden prompt'
   if (!HUMAN_ORIGINS.includes(input.originKind)) return `origin ${input.originKind}`
+  if (input.pastedChars >= cfg.minPastedChars) return 'pasted content'
   if (countWords(input.text) < cfg.minWords) return `under ${cfg.minWords} words`
   if (isExplicit) return null
   const found = structure(input.text, cfg.maxWords)

@@ -53,6 +53,7 @@ const voice = (text: string, extra: Partial<Input> = {}): Input => ({
   isCommand: false,
   isMeta: false,
   originKind: 'composer',
+  pastedChars: 0,
   ...extra,
 })
 const cfg = (over: Partial<Settings> = {}): Settings => ({ ...DEFAULTS, ...over })
@@ -101,6 +102,7 @@ describe('what it leaves alone, without calling any model', () => {
     ['a hidden prompt', voice(DICTATED, { isMeta: true })],
     ['an SDK prompt', voice(DICTATED, { originKind: 'sdk' })],
     ['a notification', voice(DICTATED, { originKind: 'notification' })],
+    ['a prompt with pasted content', voice(DICTATED, { pastedChars: 300 })],
     ['a very short prompt', voice('yes please')],
     ['a multi-line prompt', voice('Add dark mode.\n\nIt should follow the system theme.')],
     ['a bulleted prompt', voice('Do these: - add the page - wire the route - write tests')],

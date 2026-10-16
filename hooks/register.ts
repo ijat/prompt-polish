@@ -1,6 +1,7 @@
 import type { EngineInterface, Register } from 'claude-code'
 
 import { polish } from './polish'
+import { PasteTracker } from './provenance'
 import type { Deps } from './ports'
 import { readSettings } from './settings'
 import type { Settings } from './settings'
@@ -27,8 +28,16 @@ function bindEngine($: EngineInterface, cfg: Settings, ticket: StatusTicket): De
 export const register: Register = (on, options) => {
   const cfg = readSettings(options as Readonly<Record<string, unknown>>)
   const ticket: StatusTicket = { latest: 0 }
+  const pastes = new PasteTracker()
+
+  on('prompt.edit', ($, e, next) => {
+    pastes.record({ hasKey: e.key !== undefined, inputText: e.inputText })
+    return next(e)
+  })
 
   on('prompt.submit', async ($, e, next) => {
+    const pastedChars = pastes.pastedChars(e.text)
+    pastes.reset()
     if (!cfg.isEnabled) return next(e)
     const out = await polish(bindEngine($, cfg, ticket), cfg, {
       text: e.text,
@@ -36,6 +45,7 @@ export const register: Register = (on, options) => {
       isCommand: e.command !== undefined,
       isMeta: e.isMeta === true,
       originKind: e.origin.kind,
+      pastedChars,
     })
     return next(out ? { ...e, text: out.text, context: out.context } : e)
   })

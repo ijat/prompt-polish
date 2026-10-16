@@ -4,7 +4,7 @@ import { explicitImprove, skipReason, structure } from './gate'
 import type { Input } from './gate'
 import { DEFAULTS } from './settings'
 
-const input = (text: string, extra: Partial<Input> = {}): Input => ({ text, isCommand: false, isMeta: false, originKind: 'composer', ...extra })
+const input = (text: string, extra: Partial<Input> = {}): Input => ({ text, isCommand: false, isMeta: false, originKind: 'composer', pastedChars: 0, ...extra })
 
 describe('structure', () => {
   test('a flat dictated paragraph has none', () => {
@@ -51,6 +51,14 @@ describe('skipReason', () => {
     expect(skipReason(input(flat, { isCommand: true }), DEFAULTS, false)).toBe('slash command')
     expect(skipReason(input(flat, { isMeta: true }), DEFAULTS, false)).toBe('hidden prompt')
     expect(skipReason(input(flat, { originKind: 'sdk' }), DEFAULTS, false)).toBe('origin sdk')
+  })
+  test('pasted content is left alone, even for an explicit improve request', () => {
+    expect(skipReason(input(flat, { pastedChars: 500 }), DEFAULTS, false)).toBe('pasted content')
+    expect(skipReason(input(flat, { pastedChars: 500 }), DEFAULTS, true)).toBe('pasted content')
+  })
+  test('a short paste (a path, a name) does not block the rewrite', () => {
+    expect(skipReason(input(flat, { pastedChars: 12 }), DEFAULTS, false)).toBe(null)
+    expect(skipReason(input(flat, { pastedChars: 12 }), { ...DEFAULTS, minPastedChars: 10 }, false)).toBe('pasted content')
   })
   test('too short is skipped, and the limit is configurable', () => {
     expect(skipReason(input('yes please'), DEFAULTS, false)).toBe('under 4 words')

@@ -8,8 +8,8 @@ describe('readSettings', () => {
     expect(readSettings()).toEqual(DEFAULTS)
   })
   test('valid values win', () => {
-    const s = readSettings({ fastModel: 'sonnet', minWords: 6, isEnabled: false, improveEffort: 'high' })
-    expect(s).toEqual({ ...DEFAULTS, fastModel: 'sonnet', minWords: 6, isEnabled: false, improveEffort: 'high' })
+    const s = readSettings({ fastModel: 'sonnet', minWords: 6, minPastedChars: 50, isEnabled: false, improveEffort: 'high' })
+    expect(s).toEqual({ ...DEFAULTS, fastModel: 'sonnet', minWords: 6, minPastedChars: 50, isEnabled: false, improveEffort: 'high' })
   })
   test('zero is a valid ask threshold (never ask)', () => {
     expect(readSettings({ askBelowConfidence: 0 }).askBelowConfidence).toBe(0)

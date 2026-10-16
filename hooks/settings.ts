@@ -11,6 +11,8 @@ export type Settings = {
   /** Ask only when the model's confidence (0-100) is below this. */
   askBelowConfidence: number
   minWords: number
+  /** A prompt with at least this many pasted characters is left completely alone. */
+  minPastedChars: number
   maxWords: number
   statusSeconds: number
 }
@@ -25,6 +27,7 @@ export const DEFAULTS: Settings = {
   isAutoImproving: false,
   askBelowConfidence: 30,
   minWords: 4,
+  minPastedChars: 20,
   maxWords: 250,
   statusSeconds: 8,
 }
@@ -38,7 +41,7 @@ const text = (raw: Raw, key: 'fastModel' | 'improveModel'): string => {
   return typeof v === 'string' && v !== '' ? v : DEFAULTS[key]
 }
 
-const positive = (raw: Raw, key: 'minWords' | 'maxWords' | 'statusSeconds'): number => {
+const positive = (raw: Raw, key: 'minWords' | 'minPastedChars' | 'maxWords' | 'statusSeconds'): number => {
   const v = raw[key]
   return typeof v === 'number' && v > 0 ? v : DEFAULTS[key]
 }
@@ -68,6 +71,7 @@ export const readSettings = (raw: Raw = {}): Settings => ({
   isAskingWhenUnsure: flag(raw, 'isAskingWhenUnsure'),
   isAutoImproving: flag(raw, 'isAutoImproving'),
   minWords: positive(raw, 'minWords'),
+  minPastedChars: positive(raw, 'minPastedChars'),
   maxWords: positive(raw, 'maxWords'),
   askBelowConfidence: nonNegative(raw, 'askBelowConfidence'),
   statusSeconds: positive(raw, 'statusSeconds'),
