@@ -1,0 +1,206 @@
+import type { ModelCompleteRequest, ModelCompleteResult } from 'claude-code'
+import { describe, expect, test } from 'claude-code/testing'
+
+import { DEFAULTS } from './settings'
+import type { Settings } from './settings'
+import { polish } from './polish'
+import type { Input } from './gate'
+
+/** The nth recorded item; fails the test clearly instead of yielding undefined. */
+const nth = <T>(items: readonly T[], n: number): T => {
+  const item = items[n]
+  if (item === undefined) throw new Error(`expected item ${n}, only ${items.length} recorded`)
+  return item
+}
+
+const usage = { input_tokens: 1, output_tokens: 1 } as never
+
+const reply = (text: string): ModelCompleteResult => ({ isAnswered: true, text, usage })
+const fast = (action: string, confidence: string, rewrite: string, tip = 'none') =>
+  reply(`ACTION:\n${action}\nCONFIDENCE:\n${confidence}\nREWRITE:\n${rewrite}\nTIP:\n${tip}`)
+const improved = (rewrite: string, tip = 'Say what fails.') => reply(`REWRITE:\n${rewrite}\nTIP:\n${tip}`)
+
+/** Fake engine: scripted model replies in order, a scripted dialog answer, and everything recorded. */
+const rig = (replies: ModelCompleteResult[], answer: string | Error = 'Fix grammar only') => {
+  const calls: ModelCompleteRequest[] = []
+  const logs: string[] = []
+  const asked: { question: string; options: readonly string[] }[] = []
+  const queue = [...replies]
+  return {
+    calls,
+    logs,
+    asked,
+    deps: {
+      complete: async (req: ModelCompleteRequest) => {
+        calls.push(req)
+        const r = queue.shift()
+        if (!r) throw new Error('unexpected model call')
+        return r
+      },
+      ask: async (question: string, o: { options: readonly string[]; header: string }) => {
+        asked.push({ question, options: o.options })
+        if (answer instanceof Error) throw answer
+        return answer
+      },
+      log: (t: string) => void logs.push(t),
+      flash: () => {},
+    },
+  }
+}
+
+const voice = (text: string, extra: Partial<Input> = {}): Input => ({
+  text,
+  isCommand: false,
+  isMeta: false,
+  originKind: 'composer',
+  ...extra,
+})
+const cfg = (over: Partial<Settings> = {}): Settings => ({ ...DEFAULTS, ...over })
+
+const DICTATED = 'can you fix the grammer on this file it have many mistake'
+const FIXED = 'Can you fix the grammar on this file? It has many mistakes.'
+
+describe('what the agent receives', () => {
+  test('a dictated prompt becomes the fixed text, with the original attached as context', async () => {
+    const r = rig([fast('grammar', 'high', FIXED, 'Use "has" with "it".')])
+    const out = await polish(r.deps, cfg(), voice(DICTATED, { context: ['earlier context'] }))
+    expect(out?.text).toBe(FIXED)
+    expect(out?.context.at(0)).toBe('earlier context')
+    expect(out?.context.length).toBe(2)
+    expect(out?.context.at(1)).toContain(DICTATED)
+    expect(r.logs.some(l => l.includes('tip:'))).toBe(true)
+    expect(r.calls.length).toBe(1)
+    expect(nth(r.calls, 0).model).toBe('haiku')
+    expect(nth(r.calls, 0).effort).toBe('low')
+    expect(nth(r.calls, 0).prompt).toBe(DICTATED)
+  })
+
+  test('a prompt that is already clean is sent untouched', async () => {
+    const r = rig([fast('grammar', 'high', ` ${DICTATED} `, 'none')])
+    expect(await polish(r.deps, cfg(), voice(DICTATED))).toBe(null)
+  })
+
+  test('the agent never gets an empty or placeholder prompt', async () => {
+    for (const bad of ['<the corrected prompt>', '', '   ', '<your corrected version of the prompt>']) {
+      const r = rig([fast('grammar', 'high', bad)])
+      expect(await polish(r.deps, cfg(), voice(DICTATED))).toBe(null)
+    }
+  })
+
+  test('a model failure, odd reply or thrown error sends the original', async () => {
+    const failed: ModelCompleteResult = { isAnswered: false, reason: 'empty-reply' } as never
+    expect(await polish(rig([failed]).deps, cfg(), voice(DICTATED))).toBe(null)
+    expect(await polish(rig([reply('Sure! Here you go.')]).deps, cfg(), voice(DICTATED))).toBe(null)
+    expect(await polish(rig([]).deps, cfg(), voice(DICTATED))).toBe(null)
+  })
+})
+
+describe('what it leaves alone, without calling any model', () => {
+  const cases: [string, Input][] = [
+    ['a slash command', voice(DICTATED, { isCommand: true })],
+    ['a hidden prompt', voice(DICTATED, { isMeta: true })],
+    ['an SDK prompt', voice(DICTATED, { originKind: 'sdk' })],
+    ['a notification', voice(DICTATED, { originKind: 'notification' })],
+    ['a very short prompt', voice('yes please')],
+    ['a multi-line prompt', voice('Add dark mode.\n\nIt should follow the system theme.')],
+    ['a bulleted prompt', voice('Do these: - add the page - wire the route - write tests')],
+    ['a code block', voice('why does ```x = 1``` fail here')],
+  ]
+  for (const [name, input] of cases) {
+    test(name, async () => {
+      const r = rig([])
+      expect(await polish(r.deps, cfg(), input)).toBe(null)
+      expect(r.calls.length).toBe(0)
+    })
+  }
+})
+
+describe('recommendations and the dialog', () => {
+  const VAGUE = 'so uh the thing with the login it is not really working right can you look'
+
+  test('a confident improve recommendation applies the grammar fix only, with a hint', async () => {
+    const r = rig([fast('improve', 'high', 'So the login is not working right. Can you look?')])
+    const out = await polish(r.deps, cfg(), voice(VAGUE))
+    expect(out?.text).toBe('So the login is not working right. Can you look?')
+    expect(r.calls.length).toBe(1)
+    expect(r.asked.length).toBe(0)
+    expect(r.logs.some(l => l.includes('improve:'))).toBe(true)
+  })
+
+  test('with auto-improve on, a confident improve runs the improve model', async () => {
+    const r = rig([fast('improve', 'high', 'x y z'), improved('Fix the login failure. Steps and logs are below.')])
+    const out = await polish(r.deps, cfg({ isAutoImproving: true }), voice(VAGUE))
+    expect(r.calls.length).toBe(2)
+    expect(nth(r.calls, 1).model).toBe('opus')
+    expect(nth(r.calls, 1).prompt).toBe(VAGUE)
+    expect(out?.text).toBe('Fix the login failure. Steps and logs are below.')
+    expect(out?.context.at(0)).toContain('restructured')
+    expect(out?.context.at(0)).toContain(VAGUE)
+  })
+
+  test('an unsure model asks, recommended choice first', async () => {
+    const r = rig([fast('improve', 'low', 'So the login fails. Can you look?'), improved('Investigate the login failure.')], 'Improve for the agent (Recommended)')
+    const out = await polish(r.deps, cfg(), voice(VAGUE))
+    expect(r.asked.length).toBe(1)
+    expect(nth(r.asked, 0).options[0]).toBe('Improve for the agent (Recommended)')
+    expect(nth(r.asked, 0).options.length).toBe(3)
+    expect(out?.text).toBe('Investigate the login failure.')
+  })
+
+  test('the dialog can choose grammar only or the original', async () => {
+    const grammar = rig([fast('improve', 'low', 'Fixed text here ok.')], 'Fix grammar only')
+    expect((await polish(grammar.deps, cfg(), voice(VAGUE)))?.text).toBe('Fixed text here ok.')
+    expect(grammar.calls.length).toBe(1)
+
+    const original = rig([fast('improve', 'low', 'Fixed text here ok.')], 'Send original')
+    expect(await polish(original.deps, cfg(), voice(VAGUE))).toBe(null)
+  })
+
+  test('a dismissed dialog sends the original', async () => {
+    const r = rig([fast('improve', 'low', 'Fixed text here ok.')], new Error('dismissed'))
+    expect(await polish(r.deps, cfg(), voice(VAGUE))).toBe(null)
+  })
+
+  test('with the dialog off, an unsure model just applies its recommendation', async () => {
+    const r = rig([fast('grammar', 'low', 'Fixed text here ok.')])
+    const out = await polish(r.deps, cfg({ isAskingWhenUnsure: false }), voice(VAGUE))
+    expect(r.asked.length).toBe(0)
+    expect(out?.text).toBe('Fixed text here ok.')
+  })
+
+  test('"original" means too garbled: send the original', async () => {
+    const r = rig([fast('original', 'high', 'guess guess guess guess')])
+    expect(await polish(r.deps, cfg(), voice(VAGUE))).toBe(null)
+  })
+
+  test('a failed improve falls back to the grammar fix', async () => {
+    const r = rig([fast('improve', 'high', 'Grammar fixed text here.'), reply('nope')])
+    const out = await polish(r.deps, cfg({ isAutoImproving: true }), voice(VAGUE))
+    expect(out?.text).toBe('Grammar fixed text here.')
+  })
+})
+
+describe('explicit "improve:" requests', () => {
+  test('goes straight to the improve model with the phrase removed', async () => {
+    const r = rig([improved('Add dark mode that follows the system theme.')])
+    const out = await polish(r.deps, cfg(), voice('improve: add dark mode to the settings page'))
+    expect(r.calls.length).toBe(1)
+    expect(nth(r.calls, 0).model).toBe('opus')
+    expect(nth(r.calls, 0).prompt).toBe('add dark mode to the settings page')
+    expect(r.asked.length).toBe(0)
+    expect(out?.text).toBe('Add dark mode that follows the system theme.')
+    expect(out?.context.at(0)).toContain('add dark mode to the settings page')
+  })
+
+  test('works on a typed multi-line prompt too', async () => {
+    const r = rig([improved('Restructured.')])
+    const out = await polish(r.deps, cfg(), voice('improve:\nadd dark mode\n- follow the theme'))
+    expect(out?.text).toBe('Restructured.')
+  })
+
+  test('if the improve model fails, the agent still gets the prompt without the phrase', async () => {
+    const r = rig([reply('nope')])
+    const out = await polish(r.deps, cfg(), voice('improve: add dark mode to the settings page'))
+    expect(out?.text).toBe('add dark mode to the settings page')
+  })
+})

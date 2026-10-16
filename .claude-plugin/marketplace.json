@@ -1,0 +1,6 @@
+{
+  "name": "prompt-polish",
+  "owner": { "name": "Ijat" },
+  "description": "Claude Code mod that cleans up voice-dictated prompts and teaches the fix.",
+  "plugins": [{ "name": "prompt-polish", "source": "./" }]
+}
