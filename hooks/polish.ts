@@ -1,5 +1,6 @@
 import type { Input } from './gate'
 import { explicitImprove, skipReason } from './gate'
+import type { JournalEntry } from './journal'
 import type { Deps } from './ports'
 import type { Action, Parsed } from './protocol'
 import { CHOICES, FAST_SYSTEM_TYPED, FAST_SYSTEM_VOICE, IMPROVE_SYSTEM, RECOMMENDED_SUFFIX, asData, parse } from './protocol'
@@ -51,6 +52,7 @@ class Polisher {
       return { text, context: this.input.context ?? [] }
     }
     this.report.rewrite(`improved with ${this.cfg.improveModel} (you asked)`, text, improved.rewrite, improved.tip)
+    this.journalEntry({ action: 'improve', confidence: 100, errors: [], tip: improved.tip, said: text, fixed: improved.rewrite })
     return this.deliver(improved.rewrite, `The prompt above was restructured for clarity at the user's request. Original: "${text}".`)
   }
 
@@ -74,9 +76,18 @@ class Polisher {
 
     if (chosen.rewrite === this.input.text.trim()) {
       this.report.note('ran, prompt already clean')
+      this.journalEntry({ action: 'clean', confidence: fast.confidence, errors: [], tip: 'none', said: this.input.text, fixed: this.input.text })
       return null
     }
     this.report.rewrite(`${label} last prompt`, this.input.text, chosen.rewrite, chosen.tip)
+    this.journalEntry({
+      action: wasImproved ? 'improve' : 'grammar',
+      confidence: fast.confidence,
+      errors: fast.errors,
+      tip: chosen.tip,
+      said: this.input.text,
+      fixed: chosen.rewrite,
+    })
     const how = wasImproved ? ' and restructured for clarity' : ''
     return this.deliver(chosen.rewrite, `The prompt above was auto-corrected from voice dictation${how}. Original as dictated: "${this.input.text}".`)
   }
@@ -141,6 +152,11 @@ class Polisher {
       timeoutMs: IMPROVE_TIMEOUT_MS,
     })
     return r.isAnswered ? parse(r.text) : null
+  }
+
+  /** Hands one finished prompt to the opt-in journal; whether anything is stored is decided by the person's config. */
+  private journalEntry(fields: Pick<JournalEntry, 'action' | 'confidence' | 'errors' | 'tip' | 'said' | 'fixed'>): void {
+    this.deps.journal({ nowMs: Date.now(), source: this.input.source, ...fields })
   }
 
   /** The rewritten prompt, with the original kept for the agent in a hidden note. */

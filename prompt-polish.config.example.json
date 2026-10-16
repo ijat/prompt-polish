@@ -1,0 +1,7 @@
+{
+  "journal": {
+    "enabled": false,
+    "level": "tags",
+    "directory": ""
+  }
+}

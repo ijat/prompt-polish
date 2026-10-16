@@ -5,7 +5,7 @@ import { FAST_SYSTEM_TYPED, FAST_SYSTEM_VOICE, IMPROVE_SYSTEM, asData, clean, ha
 describe('parse', () => {
   test('reads action, confidence, rewrite and tip', () => {
     const p = parse('ACTION:\nimprove\nCONFIDENCE:\n35\nREWRITE:\nFix the login bug.\nTIP:\nSay what fails.')
-    expect(p).toEqual({ action: 'improve', confidence: 35, rewrite: 'Fix the login bug.', tip: 'Say what fails.' })
+    expect(p).toEqual({ action: 'improve', confidence: 35, errors: [], rewrite: 'Fix the login bug.', tip: 'Say what fails.' })
   })
   test('a missing confidence counts as fully confident', () => {
     expect(parse('ACTION:\ngrammar\nREWRITE:\nx y\nTIP:\nnone')?.confidence).toBe(100)
@@ -55,5 +55,27 @@ describe('the model prompts are fully assembled', () => {
   })
   test('asData fences the text', () => {
     expect(asData('hi there')).toBe('<prompt>\nhi there\n</prompt>')
+  })
+})
+
+describe('error codes', () => {
+  const reply = (errors: string) => `ACTION:\ngrammar\nCONFIDENCE:\n90\nERRORS:\n${errors}\nREWRITE:\nFix it now.\nTIP:\nnone`
+
+  test('known codes are kept, unknown ones dropped, duplicates collapsed', () => {
+    expect(parse(reply('Spelling, article-missing, spelling, banana'))?.errors).toEqual(['spelling', 'article-missing'])
+  })
+  test('none and a missing line both mean no errors', () => {
+    expect(parse(reply('none'))?.errors).toEqual([])
+    expect(parse('ACTION:\ngrammar\nCONFIDENCE:\n90\nREWRITE:\nFix it now.\nTIP:\nnone')?.errors).toEqual([])
+  })
+  test('the codes may share the label line', () => {
+    expect(parse('ERRORS: stutter, filler\nREWRITE:\nFix it now.\nTIP:\nnone')?.errors).toEqual(['stutter', 'filler'])
+  })
+  test('the voice prompt offers the speech codes, the typed prompt does not', () => {
+    expect(FAST_SYSTEM_VOICE).toContain('stutter')
+    expect(FAST_SYSTEM_VOICE).toContain('spelling')
+    expect(FAST_SYSTEM_TYPED).toContain('spelling')
+    expect(FAST_SYSTEM_TYPED).not.toContain('stutter')
+    expect(FAST_SYSTEM_TYPED).not.toContain('false-start')
   })
 })

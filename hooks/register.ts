@@ -1,32 +1,14 @@
 import type { EngineInterface, Register } from 'claude-code'
 
-import { appendedLog, resolveLogPath } from './logfile'
 import { polish } from './polish'
 import { DraftTracker, resolveSource } from './provenance'
 import type { Deps } from './ports'
 import { readSettings } from './settings'
+import { writeJournal, writeLogLine } from './store'
 import type { Settings } from './settings'
 
 /** Counts statuses shown, so a status clears itself only if no newer one replaced it. */
 type StatusTicket = { latest: number }
-
-/** Adds one line to the log file; read-modify-write because the engine's fs has no append. Never throws. */
-async function writeLogLine($: EngineInterface, cfg: Settings, line: string): Promise<void> {
-  try {
-    const home = (await $.env.get('HOME')) ?? (await $.env.get('USERPROFILE'))
-    const path = resolveLogPath(cfg.logPath, home)
-    if (path === null) return
-    let existing = ''
-    try {
-      existing = await $.fs.read(path)
-    } catch {
-      existing = ''
-    }
-    await $.fs.write(path, appendedLog(existing, line, await $.clock.now()))
-  } catch {
-    // Logging must never disturb a prompt.
-  }
-}
 
 /** Serialises log writes so concurrent lines cannot overwrite each other. */
 type LogQueue = { chain: Promise<void> }
@@ -39,6 +21,9 @@ function bindEngine($: EngineInterface, cfg: Settings, ticket: StatusTicket, log
     log: text => $.ui.log(text),
     record: line => {
       if (cfg.isLogging) logs.chain = logs.chain.then(() => writeLogLine($, cfg, line))
+    },
+    journal: entry => {
+      logs.chain = logs.chain.then(() => writeJournal($, cfg, entry))
     },
     flash: text => {
       const mine = ++ticket.latest

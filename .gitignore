@@ -1,3 +1,8 @@
 .DS_Store
 *.log
 .claude-plugin/types/
+
+# The opt-in learning journal and its config are personal and local. Never commit them.
+prompt-polish.config.json
+prompt-polish-journal/
+*.jsonl

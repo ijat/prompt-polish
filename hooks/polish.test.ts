@@ -3,6 +3,7 @@ import { describe, expect, test } from 'claude-code/testing'
 
 import { DEFAULTS } from './settings'
 import type { Settings } from './settings'
+import type { JournalEntry } from './journal'
 import { polish } from './polish'
 import type { Input } from './gate'
 
@@ -16,8 +17,8 @@ const nth = <T>(items: readonly T[], n: number): T => {
 const usage = { input_tokens: 1, output_tokens: 1 } as never
 
 const reply = (text: string): ModelCompleteResult => ({ isAnswered: true, text, usage })
-const fast = (action: string, confidence: number | string, rewrite: string, tip = 'none') =>
-  reply(`ACTION:\n${action}\nCONFIDENCE:\n${confidence}\nREWRITE:\n${rewrite}\nTIP:\n${tip}`)
+const fast = (action: string, confidence: number | string, rewrite: string, tip = 'none', errors = 'none') =>
+  reply(`ACTION:\n${action}\nCONFIDENCE:\n${confidence}\nERRORS:\n${errors}\nREWRITE:\n${rewrite}\nTIP:\n${tip}`)
 const improved = (rewrite: string, tip = 'Say what fails.') => reply(`REWRITE:\n${rewrite}\nTIP:\n${tip}`)
 
 /** Fake engine: scripted model replies in order, a scripted dialog answer, and everything recorded. */
@@ -25,12 +26,14 @@ const rig = (replies: ModelCompleteResult[], answer: string | Error = 'Fix gramm
   const calls: ModelCompleteRequest[] = []
   const logs: string[] = []
   const records: string[] = []
+  const entries: JournalEntry[] = []
   const asked: { question: string; options: readonly string[] }[] = []
   const queue = [...replies]
   return {
     calls,
     logs,
     records,
+    entries,
     asked,
     deps: {
       complete: async (req: ModelCompleteRequest) => {
@@ -47,6 +50,7 @@ const rig = (replies: ModelCompleteResult[], answer: string | Error = 'Fix gramm
       log: (t: string) => void logs.push(t),
       flash: () => {},
       record: (t: string) => void records.push(t),
+      journal: (e: JournalEntry) => void entries.push(e),
     },
   }
 }
@@ -282,5 +286,43 @@ describe('voice versus typed proofreading', () => {
     const r = rig([fast('grammar', 90, FIXED)])
     await polish(r.deps, cfg(), voice(DICTATED, { source: 'typed' }))
     expect(r.records.join('\n')).toContain('typed')
+  })
+})
+
+describe('the journal port', () => {
+  test('a rewrite hands over the error codes, the tip and both sentences', async () => {
+    const r = rig([fast('grammar', 90, FIXED, 'Use "has" with "it".', 'subject-verb-agreement, spelling, nonsense')])
+    await polish(r.deps, cfg(), voice(DICTATED, { source: 'voice' }))
+    const e = nth(r.entries, 0)
+    expect(e.action).toBe('grammar')
+    expect(e.source).toBe('voice')
+    expect(e.errors).toEqual(['subject-verb-agreement', 'spelling'])
+    expect(e.said).toBe(DICTATED)
+    expect(e.fixed).toBe(FIXED)
+    expect(e.tip).toBe('Use "has" with "it".')
+  })
+
+  test('a prompt the model found clean is journaled as clean, with no errors', async () => {
+    const r = rig([fast('grammar', 95, DICTATED)])
+    await polish(r.deps, cfg(), voice(DICTATED))
+    expect(r.entries.length).toBe(1)
+    expect(nth(r.entries, 0).action).toBe('clean')
+    expect(nth(r.entries, 0).errors).toEqual([])
+  })
+
+  test('an improve request is journaled as improve', async () => {
+    const r = rig([improved('Add dark mode that follows the theme.')])
+    await polish(r.deps, cfg(), voice('improve: add dark mode to the settings page'))
+    expect(nth(r.entries, 0).action).toBe('improve')
+  })
+
+  test('skipped prompts and failures journal nothing', async () => {
+    const skipped = rig([])
+    await polish(skipped.deps, cfg(), voice(DICTATED, { pastedChars: 300 }))
+    expect(skipped.entries.length).toBe(0)
+
+    const failed = rig([{ isAnswered: false, reason: 'api-error' } as never])
+    await polish(failed.deps, cfg(), voice(DICTATED))
+    expect(failed.entries.length).toBe(0)
   })
 })

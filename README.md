@@ -70,6 +70,22 @@ All optional; edit them in the Claude Code config menu.
 
 Each decision is also written to `~/.claude/prompt-polish.log` (on Windows, `%USERPROFILE%\.claude\prompt-polish.log`): a timestamp, what the mod did and why (`skipped (pasted content)`, `model failed (api-error)`, the model's action and confidence), and text lengths. It never contains your prompt or any rewrite of it. The last 300 lines are kept. Attach the file when reporting a problem. Turn it off with `isLogging`, or move it with `logPath`.
 
+## Learning journal (opt-in, local only)
+
+Off by default. To study your own mistakes later, create `~/.claude/prompt-polish.config.json` (on Windows `%USERPROFILE%\.claude\prompt-polish.config.json`). See `prompt-polish.config.example.json`:
+
+```json
+{
+  "journal": { "enabled": true, "level": "tags", "directory": "" }
+}
+```
+
+- `enabled` must be exactly `true`. A missing or malformed file keeps it off.
+- `level` controls how much is recorded. `tags` (the default): date, voice or typed, action, confidence, and a list of mistake types such as `subject-verb-agreement` or `stutter`, with **none of your text**. `tips` adds the tip sentence. `sentences` adds your original and the fixed sentence, which is **your prompt text**: use it only where that is acceptable (not for confidential work prompts).
+- Files are written to `~/.claude/prompt-polish-journal/YYYY-MM.jsonl` (one line per prompt), or to `directory`.
+- **It never leaves your machine.** The journal is written only to local disk. The mod refuses to write if the folder is inside a git repository (it checks the folder and every parent for `.git`), `.gitignore` lists the config and journal files, and the config file lives outside this repository.
+- Mistake types come from a model choosing from a fixed list, so treat them as a rough guide, not a grade.
+
 ## Costs and limits
 
 - Every polished prompt makes one extra short model call, so expect about a second of delay and a small cost. An `improve:` request makes one Opus call.
@@ -95,6 +111,8 @@ Layout (`hooks/`), each file with one job:
 | `provenance.ts` | Tells pasted text from typed text (`prompt.edit` events without a key press). |
 | `gate.ts` | When to leave a prompt alone; structure detection; the `improve:` request. |
 | `protocol.ts` | The prompts sent to the models and the parser for their replies. |
+| `journal.ts` | The opt-in learning journal: config parsing, what each level may store, the no-git-repo guard. |
+| `store.ts` | The only code that writes to disk: the diagnostics log and the journal. |
 | `logfile.ts` | Where the diagnostics log goes and how it is trimmed. |
 | `report.ts` | What the person sees: status line and transcript. |
 | `settings.ts` | Options with defaults and validation. |
