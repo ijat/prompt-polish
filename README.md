@@ -18,6 +18,12 @@ A Claude Code mod for people who dictate prompts. It cleans up each spoken promp
 - Leaves a prompt completely alone if it contains pasted content (20 or more pasted characters, detected from how the text entered the prompt box; nothing is stored).
 - Leaves alone anything you clearly typed on purpose: multi-line prompts, pasted text, bullet or numbered lists, code fences, prompts over 250 words, prompts under 4 words, slash commands, and anything not typed or dictated by you (notifications, other sessions, SDK runs).
 
+## Voice or typed
+
+The dictation cleanup (stutters, repeated fragments, false starts, "uh", misheard words) runs only on prompts that involved voice. The mod tells by watching how text entered the prompt box: Claude Code's built-in voice writes into the box itself, while typing arrives as key presses and a paste as one key-less edit. A voice-only or a mixed voice-and-typing prompt gets the dictation cleanup. A typed-only prompt gets a light proofread (grammar, spelling, punctuation) and its wording is otherwise left alone. A paste is never touched.
+
+Only the built-in voice is detected. With a third-party dictation tool the text looks typed, so set `sourceMode` to `voice` to get the cleanup anyway.
+
 ## Recommendations, and when it asks
 
 The fast model recommends one of three actions for each prompt: fix the grammar, improve it, or send the original (when dictation is too garbled to correct reliably), and says how sure it is.
@@ -56,6 +62,7 @@ All optional; edit them in the Claude Code config menu.
 | `isAutoImproving` | `false` | Run the improve model automatically on a confident "improve" recommendation. |
 | `minPastedChars` | `20` | A prompt with at least this many pasted characters is never rewritten, not even by `improve:`. |
 | `minWords` / `maxWords` | `4` / `250` | Prompts outside this range are left alone. |
+| `sourceMode` | `auto` | `auto` detects voice vs typed; `voice` or `typed` pins it (use `voice` with a third-party dictation tool). |
 | `isLogging` / `logPath` | `true` / empty | Write the diagnostics log; empty path means `~/.claude/prompt-polish.log`. |
 | `statusSeconds` | `8` | How long the `polish:` status stays. |
 

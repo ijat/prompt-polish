@@ -2,7 +2,7 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import { appendedLog, resolveLogPath } from './logfile'
 import { polish } from './polish'
-import { PasteTracker } from './provenance'
+import { DraftTracker, resolveSource } from './provenance'
 import type { Deps } from './ports'
 import { readSettings } from './settings'
 import type { Settings } from './settings'
@@ -53,17 +53,22 @@ function bindEngine($: EngineInterface, cfg: Settings, ticket: StatusTicket, log
 export const register: Register = (on, options) => {
   const cfg = readSettings(options as Readonly<Record<string, unknown>>)
   const ticket: StatusTicket = { latest: 0 }
-  const pastes = new PasteTracker()
+  const drafts = new DraftTracker()
   const logs: LogQueue = { chain: Promise.resolve() }
 
   on('prompt.edit', ($, e, next) => {
-    pastes.record({ hasKey: e.key !== undefined, inputText: e.inputText })
+    drafts.recordEdit({ hasKey: e.key !== undefined, inputText: e.inputText })
+    return next(e)
+  })
+
+  on('prompt.change', ($, e, next) => {
+    if (e.origin.kind === 'engine') drafts.recordEngineWrite()
+    else if (e.origin.kind === 'clear') drafts.recordClear()
     return next(e)
   })
 
   on('prompt.submit', async ($, e, next) => {
-    const pastedChars = pastes.pastedChars(e.text)
-    pastes.reset()
+    const { pastedChars, isDictated } = drafts.settle(e.text)
     if (!cfg.isEnabled) return next(e)
     const out = await polish(bindEngine($, cfg, ticket, logs), cfg, {
       text: e.text,
@@ -72,6 +77,7 @@ export const register: Register = (on, options) => {
       isMeta: e.isMeta === true,
       originKind: e.origin.kind,
       pastedChars,
+      source: resolveSource(cfg.sourceMode, isDictated),
     })
     await logs.chain
     return next(out ? { ...e, text: out.text, context: out.context } : e)

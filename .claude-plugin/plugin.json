@@ -1,6 +1,6 @@
 {
   "name": "prompt-polish",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Cleans up voice-dictated prompts before the agent sees them, teaches the fix in a one-line tip, and can rewrite vague prompts with a stronger model.",
   "author": { "name": "Ijat" },
   "license": "MIT",
@@ -17,6 +17,7 @@
     "minWords": { "type": "number", "title": "Minimum words", "description": "Prompts shorter than this are left alone.", "default": 4 },
     "minPastedChars": { "type": "number", "title": "Pasted characters that block rewriting", "description": "A prompt containing at least this many pasted characters is left completely alone.", "default": 20 },
     "maxWords": { "type": "number", "title": "Maximum words", "description": "Longer prompts are treated as deliberately typed and left alone.", "default": 250 },
+    "sourceMode": { "type": "string", "title": "Voice or typed", "description": "auto tells voice from typing by how the text entered the prompt box (only Claude Code's built-in voice is detected). Set voice if you always use a third-party dictation tool, or typed to never apply the dictation cleanup.", "default": "auto", "options": ["auto", "voice", "typed"] },
     "isLogging": { "type": "boolean", "title": "Write a diagnostics log", "description": "Record what the mod decided and why (never your prompt text or its rewrites) in ~/.claude/prompt-polish.log, so you can share it when something looks wrong.", "default": true },
     "logPath": { "type": "string", "title": "Log file path", "description": "Where the diagnostics log goes. Empty means ~/.claude/prompt-polish.log.", "default": "" },
     "statusSeconds": { "type": "number", "title": "Status seconds", "description": "How long the 'polish:' status stays visible.", "default": 8 }

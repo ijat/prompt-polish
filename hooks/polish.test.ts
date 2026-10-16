@@ -57,6 +57,7 @@ const voice = (text: string, extra: Partial<Input> = {}): Input => ({
   isMeta: false,
   originKind: 'composer',
   pastedChars: 0,
+  source: 'voice',
   ...extra,
 })
 const cfg = (over: Partial<Settings> = {}): Settings => ({ ...DEFAULTS, ...over })
@@ -256,5 +257,30 @@ describe('the diagnostics log', () => {
     await polish(failed.deps, cfg(), voice(SPOKEN))
     expect(failed.records.join('\n')).toContain('api-error')
     expect(failed.records.join('\n')).not.toContain('zebra')
+  })
+})
+
+describe('voice versus typed proofreading', () => {
+  test('a dictated prompt gets the dictation cleanup instructions', async () => {
+    const r = rig([fast('grammar', 90, FIXED)])
+    await polish(r.deps, cfg(), voice(DICTATED, { source: 'voice' }))
+    const system = String(nth(r.calls, 0).system)
+    expect(system).toContain('Stutters')
+    expect(system).toContain('False starts')
+  })
+
+  test('a typed-only prompt gets the light proofread: no stutter or false-start cleanup', async () => {
+    const r = rig([fast('grammar', 90, FIXED)])
+    await polish(r.deps, cfg(), voice(DICTATED, { source: 'typed' }))
+    const system = String(nth(r.calls, 0).system)
+    expect(system).toContain('proofread')
+    expect(system).not.toContain('Stutters')
+    expect(system).not.toContain('False starts')
+  })
+
+  test('the log says which kind of prompt it was', async () => {
+    const r = rig([fast('grammar', 90, FIXED)])
+    await polish(r.deps, cfg(), voice(DICTATED, { source: 'typed' }))
+    expect(r.records.join('\n')).toContain('typed')
   })
 })

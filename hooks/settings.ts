@@ -1,3 +1,5 @@
+import type { SourceMode } from './provenance'
+
 export type Effort = 'low' | 'medium' | 'high'
 
 export type Settings = {
@@ -10,6 +12,8 @@ export type Settings = {
   isAutoImproving: boolean
   /** Write a diagnostics log (decisions and counts only, never prompt text). */
   isLogging: boolean
+  /** `auto` tells voice from typing by how the text entered the box; the others pin it. */
+  sourceMode: SourceMode
   /** Where the log goes; empty means `~/.claude/prompt-polish.log`. */
   logPath: string
   /** Ask only when the model's confidence (0-100) is below this. */
@@ -30,6 +34,7 @@ export const DEFAULTS: Settings = {
   isAskingWhenUnsure: true,
   isAutoImproving: false,
   isLogging: true,
+  sourceMode: 'auto',
   logPath: '',
   askBelowConfidence: 30,
   minWords: 4,
@@ -67,6 +72,10 @@ const flag = (raw: Raw, key: 'isEnabled' | 'isAskingWhenUnsure' | 'isAutoImprovi
   return typeof v === 'boolean' ? v : DEFAULTS[key]
 }
 
+const SOURCE_MODES: readonly SourceMode[] = ['auto', 'voice', 'typed']
+
+const sourceMode = (raw: Raw): SourceMode => SOURCE_MODES.find(m => m === raw['sourceMode']) ?? DEFAULTS.sourceMode
+
 const effort = (raw: Raw, key: 'fastEffort' | 'improveEffort'): Effort => {
   const v = raw[key]
   return EFFORTS.find(e => e === v) ?? DEFAULTS[key]
@@ -82,6 +91,7 @@ export const readSettings = (raw: Raw = {}): Settings => ({
   isAskingWhenUnsure: flag(raw, 'isAskingWhenUnsure'),
   isAutoImproving: flag(raw, 'isAutoImproving'),
   isLogging: flag(raw, 'isLogging'),
+  sourceMode: sourceMode(raw),
   logPath: optionalText(raw, 'logPath'),
   minWords: positive(raw, 'minWords'),
   minPastedChars: positive(raw, 'minPastedChars'),

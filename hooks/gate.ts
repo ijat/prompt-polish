@@ -1,3 +1,4 @@
+import type { Source } from './provenance'
 import type { Settings } from './settings'
 
 /** The facts about a submitted prompt that the rewrite decision needs. */
@@ -9,6 +10,8 @@ export type Input = {
   originKind: string
   /** Characters of `text` that were pasted rather than typed or dictated. */
   pastedChars: number
+  /** Whether the dictation cleanup applies (voice-only or mixed) or only a typing proofread. */
+  source: Source
 }
 
 /** Origins that are the person's own typing or dictation. */

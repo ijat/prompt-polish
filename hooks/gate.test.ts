@@ -4,7 +4,7 @@ import { explicitImprove, skipReason, structure } from './gate'
 import type { Input } from './gate'
 import { DEFAULTS } from './settings'
 
-const input = (text: string, extra: Partial<Input> = {}): Input => ({ text, isCommand: false, isMeta: false, originKind: 'composer', pastedChars: 0, ...extra })
+const input = (text: string, extra: Partial<Input> = {}): Input => ({ text, isCommand: false, isMeta: false, originKind: 'composer', pastedChars: 0, source: 'voice', ...extra })
 
 describe('structure', () => {
   test('a flat dictated paragraph has none', () => {

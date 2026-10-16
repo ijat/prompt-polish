@@ -2,7 +2,7 @@ import type { Input } from './gate'
 import { explicitImprove, skipReason } from './gate'
 import type { Deps } from './ports'
 import type { Action, Parsed } from './protocol'
-import { CHOICES, FAST_SYSTEM, IMPROVE_SYSTEM, RECOMMENDED_SUFFIX, parse } from './protocol'
+import { CHOICES, FAST_SYSTEM_TYPED, FAST_SYSTEM_VOICE, IMPROVE_SYSTEM, RECOMMENDED_SUFFIX, parse } from './protocol'
 import { Reporter } from './report'
 import type { Settings } from './settings'
 
@@ -113,7 +113,7 @@ class Polisher {
   private async callFast(): Promise<Parsed | null> {
     const r = await this.deps.complete({
       model: this.cfg.fastModel,
-      system: FAST_SYSTEM,
+      system: this.input.source === 'voice' ? FAST_SYSTEM_VOICE : FAST_SYSTEM_TYPED,
       prompt: this.input.text,
       effort: this.cfg.fastEffort,
       maxTokens: FAST_MAX_TOKENS,
@@ -125,7 +125,7 @@ class Polisher {
     }
     const parsed = parse(r.text)
     if (!parsed) this.report.note('unusable reply, sent original')
-    else this.report.trace(`fast reply (${this.cfg.fastModel}): action=${parsed.action ?? 'none'} confidence=${parsed.confidence}`)
+    else this.report.trace(`fast reply (${this.cfg.fastModel}, ${this.input.source}): action=${parsed.action ?? 'none'} confidence=${parsed.confidence}`)
     return parsed
   }
 
