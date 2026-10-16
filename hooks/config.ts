@@ -1,9 +1,11 @@
 import type { JournalConfig } from './journal'
 import { parseJournalConfig } from './journal'
+import type { VocabularyConfig } from './vocab'
+import { DEFAULT_VOCABULARY, parseVocabulary } from './vocab'
 
 /**
  * The person's own configuration file, `~/.claude/prompt-polish.config.json`. It holds what is personal or
- * sensitive: the learning journal and the bypass rules. It is read on every prompt, so edits apply at once,
+ * sensitive: the learning journal, the bypass rules and the person's own names (vocabulary). It is read on every prompt, so edits apply at once,
  * and it lives outside this repository (which ignores it).
  */
 
@@ -24,6 +26,7 @@ export const DEFAULT_BYPASS: BypassConfig = { isEnabled: true, extraPhrases: [],
 export type PolishConfig = {
   journal: JournalConfig | null
   bypass: BypassConfig
+  vocabulary: VocabularyConfig
   /** Why part of the file was ignored (invalid JSON), or null. */
   problem: string | null
 }
@@ -45,12 +48,12 @@ const parseBypass = (raw: unknown): BypassConfig => {
 /** Reads the config file's text. A missing file gives the defaults; invalid JSON gives the defaults and says why. */
 export const parsePolishConfig = (text: string | null): PolishConfig => {
   const { config: journal, problem } = parseJournalConfig(text)
-  if (text === null) return { journal, bypass: DEFAULT_BYPASS, problem }
+  if (text === null) return { journal, bypass: DEFAULT_BYPASS, vocabulary: DEFAULT_VOCABULARY, problem }
   let raw: unknown
   try {
     raw = JSON.parse(text)
   } catch {
-    return { journal, bypass: DEFAULT_BYPASS, problem }
+    return { journal, bypass: DEFAULT_BYPASS, vocabulary: DEFAULT_VOCABULARY, problem }
   }
-  return { journal, bypass: parseBypass(raw), problem }
+  return { journal, bypass: parseBypass(raw), vocabulary: parseVocabulary(raw), problem }
 }

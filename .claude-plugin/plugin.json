@@ -1,6 +1,6 @@
 {
   "name": "prompt-polish",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "description": "Cleans up voice-dictated prompts before the agent sees them, teaches the fix in a one-line tip, and can rewrite vague prompts with a stronger model.",
   "author": { "name": "Ijat" },
   "license": "MIT",

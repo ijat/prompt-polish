@@ -5,7 +5,8 @@ import { DraftTracker, resolveSource } from './provenance'
 import type { Deps } from './ports'
 import { readSettings, showsDetails, showsStatus } from './settings'
 import { AgentNoteTracker } from './agentnote'
-import { agentNoteFor, readPolishConfig, writeJournal, writeLogLine } from './store'
+import { agentNoteFor, readPolishConfig, readProjectNames, writeJournal, writeLogLine } from './store'
+import { mergeTerms } from './vocab'
 import type { Settings } from './settings'
 
 /** Counts statuses shown, so a status clears itself only if no newer one replaced it. */
@@ -68,7 +69,8 @@ export const register: Register = (on, options) => {
     const { pastedChars, isDictated } = drafts.settle(e.text)
     agentNotes.recordSubmit()
     if (!cfg.isEnabled) return next(e)
-    const { bypass } = await readPolishConfig($)
+    const { bypass, vocabulary } = await readPolishConfig($)
+    const terms = mergeTerms(vocabulary.terms, vocabulary.isAddingProject ? await readProjectNames($) : [])
     const out = await polish(
       bindEngine($, cfg, ticket, logs),
       cfg,
@@ -82,6 +84,7 @@ export const register: Register = (on, options) => {
         source: resolveSource(cfg.sourceMode, isDictated),
       },
       bypass,
+      terms,
     )
     await logs.chain
     const context = out?.context ?? e.context

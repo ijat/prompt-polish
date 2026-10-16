@@ -38,6 +38,18 @@ Configure it in `~/.claude/prompt-polish.config.json` (see `prompt-polish.config
 - `phrases`: your own opening words, each followed by `:` `.` `-` or `—`. Plain words only.
 - `modelCheck` (default `false`; must be exactly `true`): also let the model decide, from the sentence, whether you asked for the message to be left alone ("send this exactly as I said", "don't rewrite this"). It costs no extra call: it is one more answer line in the existing fast call. Orders about the work ("don't touch the login file") are meant to be ignored. In my test on synthetic prompts (8 real requests and 14 look-alikes, each run twice), Haiku caught 16 of 16 requests with 3 of 28 false alarms, and Sonnet caught 16 of 16 with 0 of 28 false alarms. A false alarm only means that one prompt is sent without cleanup. If you turn this on, set `fastModel` to a Sonnet model.
 
+## Your own names
+
+Dictation and the model split or "correct" names they don't know, for example "socialman" written as "social man". List your names in the same config file:
+
+```json
+{ "vocabulary": { "names": ["socialman", "LuneTube", { "name": "socials", "autofix": false }], "project": true } }
+```
+
+- `names`: written exactly as they should appear (letters, digits, `.` `-` `_`; up to 40 characters, 30 names in total). They are added to the model's instructions so it writes them as listed.
+- After the model replies, a name it left split by spaces or a hyphen ("Social Man", "social-man") is joined back. This applies only to single words of letters and digits at least 5 long, and never inside paths or file names (`social-man.ts`, `src/social man`). Set `"autofix": false` on a name that is also a phrase you really use.
+- `project` (default `true`): also add the current project's names: its folder, its `package.json` name and its git `origin` repository name. `false` turns this off.
+
 ## Recommendations, and when it asks
 
 The fast model recommends one of three actions for each prompt: fix the grammar, improve it, or send the original (when dictation is too garbled to correct reliably), and says how sure it is.
@@ -135,8 +147,9 @@ Layout (`hooks/`), each file with one job:
 | `gate.ts` | When to leave a prompt alone; structure detection; the `improve:` request. |
 | `protocol.ts` | The prompts sent to the models and the parser for their replies. |
 | `journal.ts` | The opt-in learning journal: config parsing, what each level may store, the no-git-repo guard. |
-| `store.ts` | The only code that writes to disk: the diagnostics log and the journal. |
-| `config.ts` | Parses the person's config file: the bypass rules (the journal is parsed by `journal.ts`). |
+| `store.ts` | The only code that writes to disk (the diagnostics log and the journal); also reads the project's names. |
+| `config.ts` | Parses the person's config file: the bypass rules (the journal is parsed by `journal.ts`, the names by `vocab.ts`). |
+| `vocab.ts` | Your own names: config parsing, the project's names, the note for the model, and joining split names back. |
 | `agentnote.ts` | The short note that tells the agent where the log is, and the tracker that sends it once by the route that works. |
 | `logfile.ts` | Where the diagnostics log goes and how it is trimmed. |
 | `report.ts` | What the person sees: status line and transcript. |

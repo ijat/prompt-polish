@@ -420,3 +420,19 @@ describe('bypass configuration and the model check', () => {
     expect(r.calls.length).toBe(0)
   })
 })
+
+describe('the person\'s own names (vocabulary)', () => {
+  const names = [{ name: 'socialman', isAutoFixing: true }]
+  test('the names go into the model\'s instructions, and a split the model left is joined back', async () => {
+    const r = rig([fast('grammar', 90, 'Deploy social man to the cluster.')])
+    const out = await polish(r.deps, cfg(), voice('deploy social man to the cluster'), DEFAULT_BYPASS, names)
+    expect(nth(r.calls, 0).system).toContain('Known names')
+    expect(nth(r.calls, 0).system).toContain('socialman')
+    expect(out?.text).toBe('Deploy socialman to the cluster.')
+  })
+  test('without names the instructions do not mention them', async () => {
+    const r = rig([fast('grammar', 90, FIXED)])
+    await polish(r.deps, cfg(), voice(DICTATED))
+    expect(nth(r.calls, 0).system).not.toContain('Known names')
+  })
+})

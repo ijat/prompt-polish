@@ -8,5 +8,9 @@
     "enabled": true,
     "phrases": [],
     "modelCheck": false
+  },
+  "vocabulary": {
+    "names": [],
+    "project": true
   }
 }

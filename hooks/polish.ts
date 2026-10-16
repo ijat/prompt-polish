@@ -8,6 +8,8 @@ import type { Action, Parsed } from './protocol'
 import { CHOICES, IMPROVE_SYSTEM, RECOMMENDED_SUFFIX, asData, fastSystem, parse } from './protocol'
 import { Reporter } from './report'
 import type { Settings } from './settings'
+import type { Term } from './vocab'
+import { joinSplitNames, vocabularyNote } from './vocab'
 
 /** What replaces the prompt. `null` means send it exactly as it came. */
 export type Outcome = { text: string; context: readonly string[] } | null
@@ -28,6 +30,7 @@ class Polisher {
     private readonly cfg: Settings,
     private readonly input: Input,
     private readonly bypass: BypassConfig,
+    private readonly terms: readonly Term[],
   ) {
     this.report = new Reporter(deps)
   }
@@ -144,7 +147,7 @@ class Polisher {
     const startedAt = Date.now()
     const r = await this.deps.complete({
       model: this.cfg.fastModel,
-      system: fastSystem(this.input.source, this.isModelBypassOn()),
+      system: fastSystem(this.input.source, this.isModelBypassOn()) + vocabularyNote(this.terms),
       prompt: asData(this.input.text),
       effort: this.cfg.fastEffort,
       maxTokens: FAST_MAX_TOKENS,
@@ -154,7 +157,7 @@ class Polisher {
       this.report.note(`model failed (${r.reason}), sent original`)
       return null
     }
-    const parsed = parse(r.text)
+    const parsed = this.withNamesJoined(parse(r.text))
     if (!parsed) this.report.note('unusable reply, sent original')
     else this.report.trace(`fast reply (${this.cfg.fastModel}, ${this.input.source}): action=${parsed.action ?? 'none'} confidence=${parsed.confidence} ms=${Date.now() - startedAt}`)
     return parsed
@@ -164,13 +167,21 @@ class Polisher {
     this.report.progress(`improving with ${this.cfg.improveModel}...`)
     const r = await this.deps.complete({
       model: this.cfg.improveModel,
-      system: IMPROVE_SYSTEM,
+      system: IMPROVE_SYSTEM + vocabularyNote(this.terms),
       prompt: asData(text),
       effort: this.cfg.improveEffort,
       maxTokens: IMPROVE_MAX_TOKENS,
       timeoutMs: IMPROVE_TIMEOUT_MS,
     })
-    return r.isAnswered ? parse(r.text) : null
+    return r.isAnswered ? this.withNamesJoined(parse(r.text)) : null
+  }
+
+  /** The person's names put back together where the model left them split ("social man" -> "socialman"). */
+  private withNamesJoined(parsed: Parsed | null): Parsed | null {
+    if (!parsed || this.terms.length === 0) return parsed
+    const rewrite = joinSplitNames(parsed.rewrite, this.terms)
+    if (rewrite !== parsed.rewrite) this.report.trace('joined a split name from your vocabulary')
+    return { ...parsed, rewrite }
   }
 
   /** Hands one finished prompt to the opt-in journal; whether anything is stored is decided by the person's config. */
@@ -194,5 +205,5 @@ class Polisher {
  * Decides what the agent receives for one submitted prompt. Never throws: any failure
  * means `null`, the original prompt.
  */
-export const polish = (deps: Deps, cfg: Settings, input: Input, bypass: BypassConfig = DEFAULT_BYPASS): Promise<Outcome> =>
-  new Polisher(deps, cfg, input, bypass).run()
+export const polish = (deps: Deps, cfg: Settings, input: Input, bypass: BypassConfig = DEFAULT_BYPASS, terms: readonly Term[] = []): Promise<Outcome> =>
+  new Polisher(deps, cfg, input, bypass, terms).run()

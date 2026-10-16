@@ -2,6 +2,7 @@ import type { EngineInterface } from 'claude-code'
 
 import type { PolishConfig } from './config'
 import { DEFAULT_BYPASS, parsePolishConfig } from './config'
+import { DEFAULT_VOCABULARY, projectNames } from './vocab'
 import { agentNote } from './agentnote'
 import { appendedJsonl, configPath, isInsideRepo, journalDirectory, monthFile, toStored } from './journal'
 import type { JournalEntry } from './journal'
@@ -30,7 +31,7 @@ export async function writeLogLine($: EngineInterface, cfg: Settings, line: stri
 
 /** Reads the person's config file (journal and bypass rules). Missing, unreadable or malformed means the defaults. Never throws. */
 export async function readPolishConfig($: EngineInterface): Promise<PolishConfig> {
-  const fallback: PolishConfig = { journal: null, bypass: DEFAULT_BYPASS, problem: null }
+  const fallback: PolishConfig = { journal: null, bypass: DEFAULT_BYPASS, vocabulary: DEFAULT_VOCABULARY, problem: null }
   try {
     const home = (await $.env.get('HOME')) ?? (await $.env.get('USERPROFILE'))
     const file = configPath(home)
@@ -44,6 +45,26 @@ export async function readPolishConfig($: EngineInterface): Promise<PolishConfig
     return parsePolishConfig(text)
   } catch {
     return fallback
+  }
+}
+
+/** A file's text, or null when it is missing or unreadable. */
+async function readOrNull($: EngineInterface, path: string): Promise<string | null> {
+  try {
+    return await $.fs.read(path)
+  } catch {
+    return null
+  }
+}
+
+/** The current project's names: its root folder, its package.json name and its git remote's repository. Never throws. */
+export async function readProjectNames($: EngineInterface): Promise<string[]> {
+  try {
+    const root = (await $.session.root()).replace(/[\\/]+$/, '')
+    const [packageJson, gitConfig] = await Promise.all([readOrNull($, `${root}/package.json`), readOrNull($, `${root}/.git/config`)])
+    return projectNames({ folder: root, packageJson, gitConfig })
+  } catch {
+    return []
   }
 }
 
