@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { KEEP_LINES, appendedLog, resolveLogPath } from './logfile'
+import { KEEP_LINES, MAX_LINE_CHARS, appendedLog, resolveLogPath } from './logfile'
 
 describe('resolveLogPath', () => {
   test('a configured path wins', () => {
@@ -18,6 +18,11 @@ describe('resolveLogPath', () => {
 describe('appendedLog', () => {
   test('adds a timestamped line', () => {
     expect(appendedLog('', 'skipped (pasted content)', Date.UTC(2026, 9, 16, 4, 0, 0))).toBe('2026-10-16T04:00:00.000Z skipped (pasted content)\n')
+  })
+  test('one long or multi-line entry becomes one capped line', () => {
+    const out = appendedLog('', `error: ${'x'.repeat(5000)}\nmore`, 0)
+    expect(out.trim().split('\n').length).toBe(1)
+    expect(out.length <= 25 + MAX_LINE_CHARS + 1).toBe(true)
   })
   test('keeps earlier lines and caps the length', () => {
     let log = ''
