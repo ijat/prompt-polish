@@ -50,6 +50,23 @@ export const structure = (text: string, maxWords: number): string | null => {
   return null
 }
 
+/**
+ * Opens a prompt that must be sent exactly as typed: `bypass:`, `raw:`, `no polish:` or `skip polish:`
+ * (a dash works too; `bypass.` and `no polish.` also count, since dictation writes a period for a spoken pause).
+ */
+const BYPASS_PHRASE = /^\s*(?:please\s+)?(?:(?:bypass|no\s+polish|skip\s+polish)\s*[:.\-\u2014]|raw\s*[:\-\u2014])\s*/i
+
+export type BypassRequest = { isBypass: boolean; text: string }
+
+/** An explicit request to leave the prompt alone. `text` is the prompt with that opening phrase removed. */
+export const bypassRequest = (text: string): BypassRequest => {
+  const stripped = text.replace(BYPASS_PHRASE, '')
+  return stripped !== text && stripped.trim() !== '' ? { isBypass: true, text: stripped } : { isBypass: false, text }
+}
+
+/** True for a prompt the person typed or dictated themselves (not a command, a hidden prompt, or another party's). */
+export const isFromPerson = (input: Input): boolean => !input.isCommand && !input.isMeta && HUMAN_ORIGINS.includes(input.originKind)
+
 export type ImproveRequest = { isExplicit: boolean; text: string }
 
 /**

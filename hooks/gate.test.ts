@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { explicitImprove, skipReason, structure } from './gate'
+import { bypassRequest, explicitImprove, isFromPerson, skipReason, structure } from './gate'
 import type { Input } from './gate'
 import { DEFAULTS } from './settings'
 
@@ -68,5 +68,34 @@ describe('skipReason', () => {
     const typed = input('improve:\n- add a page\n- add tests')
     expect(skipReason(typed, DEFAULTS, false)).toBe('structured prompt: multi-line')
     expect(skipReason(typed, DEFAULTS, true)).toBe(null)
+  })
+})
+
+describe('bypassRequest', () => {
+  test('the opening phrases that mean "leave this alone", with or without a capital', () => {
+    for (const opener of ['bypass: ', 'Bypass: ', 'raw: ', 'no polish: ', 'skip polish - ', 'please bypass: ', 'Bypass. ', 'No polish. ']) {
+      expect(bypassRequest(`${opener}fix the login bug`)).toEqual({ isBypass: true, text: 'fix the login bug' })
+    }
+  })
+  test('ordinary prompts that merely start with those words are not a bypass', () => {
+    for (const text of ['bypass the cache for this request', 'raw data should be stored as is', 'raw, uncleaned logs are attached', 'no polish needed on the logo']) {
+      expect(bypassRequest(text).isBypass).toBe(false)
+    }
+  })
+  test('the phrase alone leaves nothing to send, so it is not a bypass', () => {
+    expect(bypassRequest('bypass:').isBypass).toBe(false)
+  })
+  test('the rest of the prompt is kept exactly, multi-line and all', () => {
+    expect(bypassRequest('bypass: line one\n\n- a\n- b').text).toBe('line one\n\n- a\n- b')
+  })
+})
+
+describe('isFromPerson', () => {
+  test('only the person\'s own prompts', () => {
+    expect(isFromPerson(input('hello there friend'))).toBe(true)
+    expect(isFromPerson(input('hello there friend', { originKind: 'bridge' }))).toBe(true)
+    expect(isFromPerson(input('hello there friend', { isCommand: true }))).toBe(false)
+    expect(isFromPerson(input('hello there friend', { isMeta: true }))).toBe(false)
+    expect(isFromPerson(input('hello there friend', { originKind: 'sdk' }))).toBe(false)
   })
 })

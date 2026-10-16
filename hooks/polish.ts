@@ -1,5 +1,5 @@
 import type { Input } from './gate'
-import { explicitImprove, skipReason } from './gate'
+import { bypassRequest, explicitImprove, isFromPerson, skipReason } from './gate'
 import type { JournalEntry } from './journal'
 import type { Deps } from './ports'
 import type { Action, Parsed } from './protocol'
@@ -30,6 +30,11 @@ class Polisher {
   }
 
   async run(): Promise<Outcome> {
+    const bypass = bypassRequest(this.input.text)
+    if (bypass.isBypass && isFromPerson(this.input)) {
+      this.report.note('bypass: sent as written, nothing changed')
+      return { text: bypass.text, context: this.input.context ?? [] }
+    }
     const request = explicitImprove(this.input.text)
     const skip = skipReason(this.input, this.cfg, request.isExplicit)
     if (skip) {
@@ -159,10 +164,15 @@ class Polisher {
     this.deps.journal({ nowMs: Date.now(), source: this.input.source, ...fields })
   }
 
-  /** The rewritten prompt, with the original kept for the agent in a hidden note. */
+  /**
+   * The rewritten prompt. The original goes along as a hidden note only when the person turned that on
+   * (`isAttachingOriginal`): the note stays in the agent's context for the rest of the conversation.
+   */
   private deliver(text: string, note: string): Outcome {
+    const base = this.input.context ?? []
+    if (!this.cfg.isAttachingOriginal) return { text, context: base }
     const fallback = 'If the rewrite seems to miss the intent, work from the original.'
-    return { text, context: [...(this.input.context ?? []), `${note} ${fallback}`] }
+    return { text, context: [...base, `${note} ${fallback}`] }
   }
 }
 

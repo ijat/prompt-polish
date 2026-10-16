@@ -10,6 +10,8 @@ export type Settings = {
   improveEffort: Effort
   isAskingWhenUnsure: boolean
   isAutoImproving: boolean
+  /** Attach your original text as a hidden note to the agent. Costs context tokens on every rewritten prompt. */
+  isAttachingOriginal: boolean
   /** Write a diagnostics log (decisions and counts only, never prompt text). */
   isLogging: boolean
   /** `auto` tells voice from typing by how the text entered the box; the others pin it. */
@@ -33,6 +35,7 @@ export const DEFAULTS: Settings = {
   improveEffort: 'medium',
   isAskingWhenUnsure: true,
   isAutoImproving: false,
+  isAttachingOriginal: false,
   isLogging: true,
   sourceMode: 'auto',
   logPath: '',
@@ -67,7 +70,7 @@ const nonNegative = (raw: Raw, key: 'askBelowConfidence'): number => {
   return typeof v === 'number' && v >= 0 ? v : DEFAULTS[key]
 }
 
-const flag = (raw: Raw, key: 'isEnabled' | 'isAskingWhenUnsure' | 'isAutoImproving' | 'isLogging'): boolean => {
+const flag = (raw: Raw, key: 'isEnabled' | 'isAskingWhenUnsure' | 'isAutoImproving' | 'isAttachingOriginal' | 'isLogging'): boolean => {
   const v = raw[key]
   return typeof v === 'boolean' ? v : DEFAULTS[key]
 }
@@ -90,6 +93,7 @@ export const readSettings = (raw: Raw = {}): Settings => ({
   improveEffort: effort(raw, 'improveEffort'),
   isAskingWhenUnsure: flag(raw, 'isAskingWhenUnsure'),
   isAutoImproving: flag(raw, 'isAutoImproving'),
+  isAttachingOriginal: flag(raw, 'isAttachingOriginal'),
   isLogging: flag(raw, 'isLogging'),
   sourceMode: sourceMode(raw),
   logPath: optionalText(raw, 'logPath'),

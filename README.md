@@ -5,7 +5,7 @@ A Claude Code mod for people who dictate prompts. It cleans up each spoken promp
 ## What it does
 
 - Rewrites a flat, spoken-style prompt: fixes grammar, punctuation and speech-to-text slips, keeping your meaning. A small, fast model does this (Haiku by default).
-- Sends the agent the cleaned prompt, plus your original as hidden context, so a wrong guess never loses what you said.
+- Sends the agent the cleaned prompt. Your original stays out of the agent's context by default, so nothing accumulates there; turn on `isAttachingOriginal` to attach it as a hidden note (about 60-150 tokens per rewritten prompt) as a safety net if a rewrite might miss your intent.
 - Prints what happened under your prompt, and flashes a short `polish:` status that clears after a few seconds:
 
   ```
@@ -23,6 +23,10 @@ A Claude Code mod for people who dictate prompts. It cleans up each spoken promp
 The dictation cleanup (stutters, repeated fragments, false starts, "uh", misheard words) runs only on prompts that involved voice. The mod tells by watching how text entered the prompt box: Claude Code's built-in voice writes into the box itself, while typing arrives as key presses and a paste as one key-less edit. A voice-only or a mixed voice-and-typing prompt gets the dictation cleanup. A typed-only prompt gets a light proofread (grammar, spelling, punctuation) and its wording is otherwise left alone. A paste is never touched.
 
 Only the built-in voice is detected. With a third-party dictation tool the text looks typed, so set `sourceMode` to `voice` to get the cleanup anyway.
+
+## Bypass: send exactly as written
+
+Start a prompt with `bypass:` (also `raw:`, `no polish:`, `skip polish:`, or a dash instead of the colon; `Bypass.` and `No polish.` work too, since dictation writes a period for a pause) and the mod skips everything: no model call, no rewrite, no dialog, no journal entry. Only that opening phrase is removed; the rest goes to the agent unchanged. It wins over every other rule, including `improve:`. It applies only to prompts you typed or dictated, never to slash commands. A prompt that merely starts with those words, like "bypass the cache for this request", is not treated as a bypass.
 
 ## Recommendations, and when it asks
 
@@ -59,6 +63,7 @@ All optional; edit them in the Claude Code config menu.
 | `improveModel` / `improveEffort` | `opus` / `medium` | Model used for `improve:` requests. |
 | `isAskingWhenUnsure` | `true` | Show the dialog when the fast model isn't confident. |
 | `askBelowConfidence` | `30` | Ask only when confidence (0-100) is below this; rambling is treated as normal. |
+| `isAttachingOriginal` | `false` | Attach your original to the agent as a hidden note. Adds context tokens to every rewritten prompt. |
 | `isAutoImproving` | `false` | Run the improve model automatically on a confident "improve" recommendation. |
 | `minPastedChars` | `20` | A prompt with at least this many pasted characters is never rewritten, not even by `improve:`. |
 | `minWords` / `maxWords` | `4` / `250` | Prompts outside this range are left alone. |

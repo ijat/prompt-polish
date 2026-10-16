@@ -70,13 +70,11 @@ const DICTATED = 'can you fix the grammer on this file it have many mistake'
 const FIXED = 'Can you fix the grammar on this file? It has many mistakes.'
 
 describe('what the agent receives', () => {
-  test('a dictated prompt becomes the fixed text, with the original attached as context', async () => {
+  test('a dictated prompt becomes the fixed text, and by default adds nothing to the agent\'s context', async () => {
     const r = rig([fast('grammar', 90, FIXED, 'Use "has" with "it".')])
     const out = await polish(r.deps, cfg(), voice(DICTATED, { context: ['earlier context'] }))
     expect(out?.text).toBe(FIXED)
-    expect(out?.context.at(0)).toBe('earlier context')
-    expect(out?.context.length).toBe(2)
-    expect(out?.context.at(1)).toContain(DICTATED)
+    expect(out?.context).toEqual(['earlier context'])
     expect(r.logs.some(l => l.includes('tip:'))).toBe(true)
     expect(r.calls.length).toBe(1)
     expect(nth(r.calls, 0).model).toBe('haiku')
@@ -139,7 +137,7 @@ describe('recommendations and the dialog', () => {
 
   test('with auto-improve on, a confident improve runs the improve model', async () => {
     const r = rig([fast('improve', 90, 'x y z'), improved('Fix the login failure. Steps and logs are below.')])
-    const out = await polish(r.deps, cfg({ isAutoImproving: true }), voice(VAGUE))
+    const out = await polish(r.deps, cfg({ isAutoImproving: true, isAttachingOriginal: true }), voice(VAGUE))
     expect(r.calls.length).toBe(2)
     expect(nth(r.calls, 1).model).toBe('opus')
     expect(nth(r.calls, 1).prompt).toBe(`<prompt>\n${VAGUE}\n</prompt>`)
@@ -216,7 +214,7 @@ describe('recommendations and the dialog', () => {
 describe('explicit "improve:" requests', () => {
   test('goes straight to the improve model with the phrase removed', async () => {
     const r = rig([improved('Add dark mode that follows the system theme.')])
-    const out = await polish(r.deps, cfg(), voice('improve: add dark mode to the settings page'))
+    const out = await polish(r.deps, cfg({ isAttachingOriginal: true }), voice('improve: add dark mode to the settings page'))
     expect(r.calls.length).toBe(1)
     expect(nth(r.calls, 0).model).toBe('opus')
     expect(nth(r.calls, 0).prompt).toBe('<prompt>\nadd dark mode to the settings page\n</prompt>')
@@ -324,5 +322,57 @@ describe('the journal port', () => {
     const failed = rig([{ isAnswered: false, reason: 'api-error' } as never])
     await polish(failed.deps, cfg(), voice(DICTATED))
     expect(failed.entries.length).toBe(0)
+  })
+})
+
+describe('the hidden original note (costs context, so it is opt-in)', () => {
+  test('off by default: neither a rewrite nor an improve adds any context', async () => {
+    const a = rig([fast('grammar', 90, FIXED)])
+    expect((await polish(a.deps, cfg(), voice(DICTATED)))?.context).toEqual([])
+    const b = rig([improved('Add dark mode.')])
+    expect((await polish(b.deps, cfg(), voice('improve: add dark mode to the settings page')))?.context).toEqual([])
+  })
+
+  test('on: the original rides along once, after any context already there', async () => {
+    const r = rig([fast('grammar', 90, FIXED)])
+    const out = await polish(r.deps, cfg({ isAttachingOriginal: true }), voice(DICTATED, { context: ['earlier context'] }))
+    expect(out?.context.length).toBe(2)
+    expect(out?.context.at(0)).toBe('earlier context')
+    expect(out?.context.at(1)).toContain(DICTATED)
+  })
+})
+
+describe('bypass', () => {
+  test('sent exactly as written minus the opening phrase: no model call, no dialog, no journal', async () => {
+    const r = rig([])
+    const out = await polish(r.deps, cfg(), voice('bypass: can you fix teh grammer on this file it have many mistake', { context: ['earlier context'] }))
+    expect(out?.text).toBe('can you fix teh grammer on this file it have many mistake')
+    expect(out?.context).toEqual(['earlier context'])
+    expect(r.calls.length).toBe(0)
+    expect(r.asked.length).toBe(0)
+    expect(r.entries.length).toBe(0)
+  })
+
+  test('it beats every other rule, including pasted content, a short prompt and structure', async () => {
+    const r = rig([])
+    expect((await polish(r.deps, cfg(), voice('raw: ok', { pastedChars: 900 })))?.text).toBe('ok')
+    const structured = await polish(r.deps, cfg(), voice('bypass: do this:\n- one\n- two\n- three'))
+    expect(structured?.text).toBe('do this:\n- one\n- two\n- three')
+    expect(r.calls.length).toBe(0)
+  })
+
+  test('it beats improve: too, and never applies to a command or a non-person prompt', async () => {
+    const r = rig([])
+    expect((await polish(r.deps, cfg(), voice('bypass: improve: add dark mode')))?.text).toBe('improve: add dark mode')
+    expect(await polish(r.deps, cfg(), voice('bypass: not a person', { originKind: 'sdk' }))).toBe(null)
+    expect(await polish(r.deps, cfg(), voice('bypass: /clear', { isCommand: true }))).toBe(null)
+    expect(r.calls.length).toBe(0)
+  })
+
+  test('it is recorded in the diagnostics log without the prompt text', async () => {
+    const r = rig([])
+    await polish(r.deps, cfg(), voice('bypass: secret falcon launch codes tomorrow'))
+    expect(r.records.join('\n')).toContain('bypass')
+    expect(r.records.join('\n')).not.toContain('falcon')
   })
 })

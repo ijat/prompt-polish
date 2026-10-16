@@ -7,6 +7,11 @@ describe('readSettings', () => {
     expect(readSettings({})).toEqual(DEFAULTS)
     expect(readSettings()).toEqual(DEFAULTS)
   })
+  test('attaching the original is off unless the person turns it on', () => {
+    expect(readSettings({}).isAttachingOriginal).toBe(false)
+    expect(readSettings({ isAttachingOriginal: true }).isAttachingOriginal).toBe(true)
+    expect(readSettings({ isAttachingOriginal: 'yes' }).isAttachingOriginal).toBe(false)
+  })
   test('valid values win', () => {
     const s = readSettings({ fastModel: 'sonnet', minWords: 6, minPastedChars: 50, isEnabled: false, improveEffort: 'high' })
     expect(s).toEqual({ ...DEFAULTS, fastModel: 'sonnet', minWords: 6, minPastedChars: 50, isEnabled: false, improveEffort: 'high' })
