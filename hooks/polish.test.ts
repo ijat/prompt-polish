@@ -24,11 +24,13 @@ const improved = (rewrite: string, tip = 'Say what fails.') => reply(`REWRITE:\n
 const rig = (replies: ModelCompleteResult[], answer: string | Error = 'Fix grammar only') => {
   const calls: ModelCompleteRequest[] = []
   const logs: string[] = []
+  const records: string[] = []
   const asked: { question: string; options: readonly string[] }[] = []
   const queue = [...replies]
   return {
     calls,
     logs,
+    records,
     asked,
     deps: {
       complete: async (req: ModelCompleteRequest) => {
@@ -44,6 +46,7 @@ const rig = (replies: ModelCompleteResult[], answer: string | Error = 'Fix gramm
       },
       log: (t: string) => void logs.push(t),
       flash: () => {},
+      record: (t: string) => void records.push(t),
     },
   }
 }
@@ -227,5 +230,31 @@ describe('explicit "improve:" requests', () => {
     const r = rig([reply('nope')])
     const out = await polish(r.deps, cfg(), voice('improve: add dark mode to the settings page'))
     expect(out?.text).toBe('add dark mode to the settings page')
+  })
+})
+
+describe('the diagnostics log', () => {
+  const SECRET_WORDS = 'confidential merger codename zebra'
+  const SPOKEN = `so uh ${SECRET_WORDS} needs the login looked at it is not really working right`
+
+  test('records decisions, and never the prompt or any rewrite of it', async () => {
+    const rewrite = `So ${SECRET_WORDS} needs its login looked at.`
+    const r = rig([fast('grammar', 90, rewrite, `Say "its" not "it", about ${SECRET_WORDS}.`)])
+    await polish(r.deps, cfg(), voice(SPOKEN))
+    expect(r.records.length > 0).toBe(true)
+    const all = r.records.join('\n')
+    for (const leaked of [SECRET_WORDS, 'zebra', 'login', 'looked']) expect(all).not.toContain(leaked)
+    expect(all).toContain('confidence=90')
+  })
+
+  test('skips and failures are recorded too, still without the prompt', async () => {
+    const skipped = rig([])
+    await polish(skipped.deps, cfg(), voice(SPOKEN, { pastedChars: 400 }))
+    expect(skipped.records.join('\n')).toContain('pasted content')
+
+    const failed = rig([{ isAnswered: false, reason: 'api-error' } as never])
+    await polish(failed.deps, cfg(), voice(SPOKEN))
+    expect(failed.records.join('\n')).toContain('api-error')
+    expect(failed.records.join('\n')).not.toContain('zebra')
   })
 })

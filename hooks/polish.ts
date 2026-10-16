@@ -101,7 +101,9 @@ class Polisher {
         options: order.map((a, i) => CHOICES[a] + (i === 0 ? RECOMMENDED_SUFFIX : '')),
         header: 'Polish',
       })
-      return order.find(a => choice.startsWith(CHOICES[a])) ?? recommended
+      const picked = order.find(a => choice.startsWith(CHOICES[a])) ?? recommended
+      this.report.trace(`dialog: recommended=${recommended} picked=${picked}`)
+      return picked
     } catch {
       this.report.note('dialog dismissed, sent original')
       return null
@@ -123,6 +125,7 @@ class Polisher {
     }
     const parsed = parse(r.text)
     if (!parsed) this.report.note('unusable reply, sent original')
+    else this.report.trace(`fast reply (${this.cfg.fastModel}): action=${parsed.action ?? 'none'} confidence=${parsed.confidence}`)
     return parsed
   }
 

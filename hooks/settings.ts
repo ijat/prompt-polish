@@ -8,6 +8,10 @@ export type Settings = {
   improveEffort: Effort
   isAskingWhenUnsure: boolean
   isAutoImproving: boolean
+  /** Write a diagnostics log (decisions and counts only, never prompt text). */
+  isLogging: boolean
+  /** Where the log goes; empty means `~/.claude/prompt-polish.log`. */
+  logPath: string
   /** Ask only when the model's confidence (0-100) is below this. */
   askBelowConfidence: number
   minWords: number
@@ -25,6 +29,8 @@ export const DEFAULTS: Settings = {
   improveEffort: 'medium',
   isAskingWhenUnsure: true,
   isAutoImproving: false,
+  isLogging: true,
+  logPath: '',
   askBelowConfidence: 30,
   minWords: 4,
   minPastedChars: 20,
@@ -41,6 +47,11 @@ const text = (raw: Raw, key: 'fastModel' | 'improveModel'): string => {
   return typeof v === 'string' && v !== '' ? v : DEFAULTS[key]
 }
 
+const optionalText = (raw: Raw, key: 'logPath'): string => {
+  const v = raw[key]
+  return typeof v === 'string' ? v.trim() : DEFAULTS[key]
+}
+
 const positive = (raw: Raw, key: 'minWords' | 'minPastedChars' | 'maxWords' | 'statusSeconds'): number => {
   const v = raw[key]
   return typeof v === 'number' && v > 0 ? v : DEFAULTS[key]
@@ -51,7 +62,7 @@ const nonNegative = (raw: Raw, key: 'askBelowConfidence'): number => {
   return typeof v === 'number' && v >= 0 ? v : DEFAULTS[key]
 }
 
-const flag = (raw: Raw, key: 'isEnabled' | 'isAskingWhenUnsure' | 'isAutoImproving'): boolean => {
+const flag = (raw: Raw, key: 'isEnabled' | 'isAskingWhenUnsure' | 'isAutoImproving' | 'isLogging'): boolean => {
   const v = raw[key]
   return typeof v === 'boolean' ? v : DEFAULTS[key]
 }
@@ -70,6 +81,8 @@ export const readSettings = (raw: Raw = {}): Settings => ({
   improveEffort: effort(raw, 'improveEffort'),
   isAskingWhenUnsure: flag(raw, 'isAskingWhenUnsure'),
   isAutoImproving: flag(raw, 'isAutoImproving'),
+  isLogging: flag(raw, 'isLogging'),
+  logPath: optionalText(raw, 'logPath'),
   minWords: positive(raw, 'minWords'),
   minPastedChars: positive(raw, 'minPastedChars'),
   maxWords: positive(raw, 'maxWords'),

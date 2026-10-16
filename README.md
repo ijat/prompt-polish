@@ -56,7 +56,12 @@ All optional; edit them in the Claude Code config menu.
 | `isAutoImproving` | `false` | Run the improve model automatically on a confident "improve" recommendation. |
 | `minPastedChars` | `20` | A prompt with at least this many pasted characters is never rewritten, not even by `improve:`. |
 | `minWords` / `maxWords` | `4` / `250` | Prompts outside this range are left alone. |
+| `isLogging` / `logPath` | `true` / empty | Write the diagnostics log; empty path means `~/.claude/prompt-polish.log`. |
 | `statusSeconds` | `8` | How long the `polish:` status stays. |
+
+## Diagnostics log
+
+Each decision is also written to `~/.claude/prompt-polish.log` (on Windows, `%USERPROFILE%\.claude\prompt-polish.log`): a timestamp, what the mod did and why (`skipped (pasted content)`, `model failed (api-error)`, the model's action and confidence), and text lengths. It never contains your prompt or any rewrite of it. The last 300 lines are kept. Attach the file when reporting a problem. Turn it off with `isLogging`, or move it with `logPath`.
 
 ## Costs and limits
 
@@ -83,6 +88,7 @@ Layout (`hooks/`), each file with one job:
 | `provenance.ts` | Tells pasted text from typed text (`prompt.edit` events without a key press). |
 | `gate.ts` | When to leave a prompt alone; structure detection; the `improve:` request. |
 | `protocol.ts` | The prompts sent to the models and the parser for their replies. |
+| `logfile.ts` | Where the diagnostics log goes and how it is trimmed. |
 | `report.ts` | What the person sees: status line and transcript. |
 | `settings.ts` | Options with defaults and validation. |
 

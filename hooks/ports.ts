@@ -8,4 +8,6 @@ export type Deps = {
   log: (text: string) => void
   /** The short, self-clearing status. */
   flash: (text: string) => void
+  /** A diagnostics line for the log file. Must never contain the person's prompt text or any rewrite of it. */
+  record: (line: string) => void
 }
