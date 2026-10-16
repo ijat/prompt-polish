@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { clean, hasTip, parse } from './protocol'
+import { FAST_SYSTEM_TYPED, FAST_SYSTEM_VOICE, IMPROVE_SYSTEM, asData, clean, hasTip, parse } from './protocol'
 
 describe('parse', () => {
   test('reads action, confidence, rewrite and tip', () => {
@@ -33,5 +33,27 @@ describe('text helpers', () => {
     expect(hasTip('none')).toBe(false)
     expect(hasTip('None.')).toBe(false)
     expect(hasTip('Use "its" without an apostrophe.')).toBe(true)
+  })
+})
+
+describe('the model prompts are fully assembled', () => {
+  const prompts = { voice: FAST_SYSTEM_VOICE, typed: FAST_SYSTEM_TYPED, improve: IMPROVE_SYSTEM }
+  for (const [name, text] of Object.entries(prompts)) {
+    test(`${name} prompt has no unfilled template parts`, () => {
+      expect(text).not.toContain('[object Object]')
+      expect(text).not.toContain('${')
+      expect(text).not.toContain('undefined')
+      expect(text).toContain('<prompt>')
+      expect(text).toContain('REWRITE:')
+      expect(text).toContain('TIP:')
+    })
+  }
+  test('the fast prompts ask for an action and a confidence; the improve prompt does not', () => {
+    expect(FAST_SYSTEM_VOICE).toContain('CONFIDENCE:')
+    expect(FAST_SYSTEM_TYPED).toContain('ACTION:')
+    expect(IMPROVE_SYSTEM).not.toContain('CONFIDENCE:')
+  })
+  test('asData fences the text', () => {
+    expect(asData('hi there')).toBe('<prompt>\nhi there\n</prompt>')
   })
 })

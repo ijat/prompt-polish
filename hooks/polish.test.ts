@@ -77,7 +77,7 @@ describe('what the agent receives', () => {
     expect(r.calls.length).toBe(1)
     expect(nth(r.calls, 0).model).toBe('haiku')
     expect(nth(r.calls, 0).effort).toBe('low')
-    expect(nth(r.calls, 0).prompt).toBe(DICTATED)
+    expect(nth(r.calls, 0).prompt).toBe(`<prompt>\n${DICTATED}\n</prompt>`)
   })
 
   test('a prompt that is already clean is sent untouched', async () => {
@@ -138,7 +138,7 @@ describe('recommendations and the dialog', () => {
     const out = await polish(r.deps, cfg({ isAutoImproving: true }), voice(VAGUE))
     expect(r.calls.length).toBe(2)
     expect(nth(r.calls, 1).model).toBe('opus')
-    expect(nth(r.calls, 1).prompt).toBe(VAGUE)
+    expect(nth(r.calls, 1).prompt).toBe(`<prompt>\n${VAGUE}\n</prompt>`)
     expect(out?.text).toBe('Fix the login failure. Steps and logs are below.')
     expect(out?.context.at(0)).toContain('restructured')
     expect(out?.context.at(0)).toContain(VAGUE)
@@ -215,7 +215,7 @@ describe('explicit "improve:" requests', () => {
     const out = await polish(r.deps, cfg(), voice('improve: add dark mode to the settings page'))
     expect(r.calls.length).toBe(1)
     expect(nth(r.calls, 0).model).toBe('opus')
-    expect(nth(r.calls, 0).prompt).toBe('add dark mode to the settings page')
+    expect(nth(r.calls, 0).prompt).toBe('<prompt>\nadd dark mode to the settings page\n</prompt>')
     expect(r.asked.length).toBe(0)
     expect(out?.text).toBe('Add dark mode that follows the system theme.')
     expect(out?.context.at(0)).toContain('add dark mode to the settings page')

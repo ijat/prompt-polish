@@ -17,12 +17,25 @@ export type Input = {
 /** Origins that are the person's own typing or dictation. */
 const HUMAN_ORIGINS: readonly string[] = ['composer', 'bridge']
 
-const LIST_MARKER = /(?:^|\s)(?:[-*•]|\d+[.)])\s/g
+const BULLET_MARKER = /(?:^|\s)[-*•]\s/g
+const NUMBER_MARKER = /(?:^|\s)(\d+)[.)]\s/g
 const IMPROVE_VERB = '(?:improve|polish|enhance|sharpen)'
 const LEADING_REQUEST = new RegExp(`^\\s*(?:please\\s+)?${IMPROVE_VERB}(?:\\s+(?:this|my|the))?(?:\\s+prompt)?\\s*[:\\-\\u2014]\\s*`, 'i')
 const TRAILING_REQUEST = new RegExp(`[\\s,.;]*(?:and\\s+)?(?:please\\s+)?${IMPROVE_VERB}\\s+(?:this|my|the)\\s+prompt[\\s.!]*$`, 'i')
 
 export const countWords = (text: string): number => text.trim().split(/\s+/).filter(Boolean).length
+
+/**
+ * Whether the text holds a bullet or numbered list written on one line. A lone " - " is a dash, so bullets
+ * need three markers (or two, the first right after a colon); numbers must count up from 1.
+ */
+const hasList = (body: string): boolean => {
+  const bullets = body.match(BULLET_MARKER) ?? []
+  if (bullets.length >= 3 || (bullets.length === 2 && /:\s*[-*\u2022]\s/.test(body))) return true
+  const numbers = [...body.matchAll(NUMBER_MARKER)].map(m => Number(m[1]))
+  const first = numbers.indexOf(1)
+  return first !== -1 && numbers[first + 1] === 2
+}
 
 /**
  * Dictation arrives as one flat paragraph; typed or pasted prompts show structure.
@@ -32,7 +45,7 @@ export const structure = (text: string, maxWords: number): string | null => {
   const body = text.trim()
   if (/\n/.test(body)) return 'multi-line'
   if (/```/.test(body)) return 'code block'
-  if ((body.match(LIST_MARKER) ?? []).length >= 2) return 'list'
+  if (hasList(body)) return 'list'
   if (countWords(body) > maxWords) return `over ${maxWords} words`
   return null
 }
